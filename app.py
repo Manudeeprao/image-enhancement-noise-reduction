@@ -62,44 +62,205 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Professional Custom CSS
+# Advanced Professional CSS with Modern Design
 st.markdown("""
     <style>
-    /* Main Header */
-    .main-header {
-        font-size: 2.5em;
-        font-weight: 700;
-        color: #0052A3;
-        text-align: center;
-        margin-bottom: 5px;
-        letter-spacing: 0.5px;
+    /* Root Variables */
+    :root {
+        --primary-color: #0052A3;
+        --secondary-color: #FF6B6B;
+        --accent-color: #4ECDC4;
+        --dark-bg: #1a1a1a;
+        --light-bg: #f8f9fa;
+        --text-dark: #2c3e50;
+        --border-color: #e0e0e0;
     }
     
-    /* Subheader */
-    .subheader {
-        font-size: 1.3em;
-        font-weight: 600;
-        color: #0052A3;
-        margin-top: 25px;
-        margin-bottom: 15px;
-        padding-top: 10px;
-        border-top: 2px solid #E8E8E8;
+    /* Main Container */
+    .main {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 0 !important;
+    }
+    
+    /* Main Header */
+    .main-header {
+        background: linear-gradient(135deg, #0052A3 0%, #004494 100%);
+        color: white;
+        font-size: 3em;
+        font-weight: 800;
+        text-align: center;
+        margin-bottom: 10px;
+        padding: 40px 20px;
+        border-radius: 15px;
+        box-shadow: 0 8px 32px rgba(0, 82, 163, 0.3);
+        letter-spacing: 1px;
+        text-transform: uppercase;
     }
     
     /* Subtitle */
     .subtitle {
-        font-size: 1.1em;
-        color: #666666;
+        font-size: 1.2em;
+        color: #555;
         text-align: center;
-        margin-top: 0px;
-        margin-bottom: 20px;
+        margin-bottom: 30px;
         font-weight: 500;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Subheader Sections */
+    .subheader {
+        font-size: 1.5em;
+        font-weight: 700;
+        color: white;
+        background: linear-gradient(135deg, #0052A3 0%, #004494 100%);
+        padding: 15px 25px;
+        margin-top: 40px;
+        margin-bottom: 20px;
+        border-radius: 10px;
+        border-left: 5px solid #FF6B6B;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     }
     
     /* Section divider */
     .section-divider {
-        margin: 30px 0;
-        border-top: 2px solid #E8E8E8;
+        margin: 40px 0;
+        border-top: 3px solid #0052A3;
+        border-radius: 2px;
+    }
+    
+    /* Card styling */
+    .card {
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        margin: 15px 0;
+        border-left: 5px solid #0052A3;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #0052A3 0%, #004494 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 12px 30px;
+        font-weight: 600;
+        font-size: 1em;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0, 82, 163, 0.3);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #004494 0%, #003d7a 100%);
+        box-shadow: 0 6px 20px rgba(0, 82, 163, 0.4);
+        transform: translateY(-2px);
+    }
+    
+    /* Metric styling */
+    .metric-container {
+        background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0, 153, 204, 0.3);
+    }
+    
+    /* Success message */
+    .success-box {
+        background: #d4edda;
+        color: #155724;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 5px solid #28a745;
+        margin: 10px 0;
+    }
+    
+    /* Info message */
+    .info-box {
+        background: #d1ecf1;
+        color: #0c5460;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 5px solid #17a2b8;
+        margin: 10px 0;
+    }
+    
+    /* Warning message */
+    .warning-box {
+        background: #fff3cd;
+        color: #856404;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 5px solid #ffc107;
+        margin: 10px 0;
+    }
+    
+    /* Sidebar styling */
+    .sidebar .sidebar-content {
+        background: white;
+    }
+    
+    /* Image container */
+    .image-container {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        background: white;
+        padding: 10px;
+    }
+    
+    /* Grid layout for images */
+    .image-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin: 20px 0;
+    }
+    
+    /* Text styling */
+    h1, h2, h3 {
+        color: #0052A3;
+        font-weight: 700;
+    }
+    
+    /* Links */
+    a {
+        color: #0052A3;
+        text-decoration: none;
+        font-weight: 600;
+    }
+    
+    a:hover {
+        color: #FF6B6B;
+        text-decoration: underline;
+    }
+    
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+        width: 10px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: #0052A3;
+        border-radius: 5px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: #004494;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -128,11 +289,18 @@ if 'noise_params' not in st.session_state:
 # SIDEBAR - CONTROLS
 # ============================================================================
 
-st.sidebar.markdown("### Control Panel")
-st.sidebar.markdown("---")
+st.sidebar.markdown("""
+<div style='background: linear-gradient(135deg, #0052A3 0%, #004494 100%); padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 20px;'>
+<h2 style='color: white; margin: 0;'>🎮 Control Panel</h2>
+</div>
+""", unsafe_allow_html=True)
 
 # Image Upload
-st.sidebar.markdown("#### Upload Image")
+st.sidebar.markdown("""
+<div style='background: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 4px solid #0052A3; margin-bottom: 15px;'>
+<h4 style='color: #0052A3; margin-top: 0;'>📸 Upload Image</h4>
+</div>
+""", unsafe_allow_html=True)
 uploaded_file = st.sidebar.file_uploader(
     "Select image (JPG/PNG)",
     type=["jpg", "jpeg", "png"]
@@ -146,7 +314,11 @@ if uploaded_file is not None:
         st.sidebar.error(f"❌ Error loading image: {e}")
 
 # Noise Parameters
-st.sidebar.markdown("#### Noise Configuration")
+st.sidebar.markdown("""
+<div style='background: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 4px solid #FF6B6B; margin-top: 20px; margin-bottom: 15px;'>
+<h4 style='color: #0052A3; margin-top: 0;'>🌪️ Noise Configuration</h4>
+</div>
+""", unsafe_allow_html=True)
 noise_type = st.sidebar.selectbox(
     "Noise Type",
     ["Gaussian Noise", "Salt & Pepper Noise"]
@@ -179,10 +351,12 @@ if st.sidebar.button("🔧 Generate Noisy Image", key="generate_noise"):
     else:
         st.sidebar.warning("⚠️ Please upload an image first!")
 
-st.sidebar.markdown("---")
-
-# Filter Selection
-st.sidebar.markdown("#### Digital Filters")
+st.sidebar.markdown("""
+---
+<div style='background: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 4px solid #4ECDC4; margin-top: 20px; margin-bottom: 15px;'>
+<h4 style='color: #0052A3; margin-top: 0;'>🎛️ Digital Filters</h4>
+</div>
+""", unsafe_allow_html=True)
 
 filter_options = {
     "Average Filter": "average",
@@ -201,7 +375,11 @@ selected_filters = st.sidebar.multiselect(
 )
 
 # Enhancement Methods
-st.sidebar.markdown("#### Enhancement Methods")
+st.sidebar.markdown("""
+<div style='background: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 4px solid #FFA502; margin-top: 20px; margin-bottom: 15px;'>
+<h4 style='color: #0052A3; margin-top: 0;'>✨ Enhancement Methods</h4>
+</div>
+""", unsafe_allow_html=True)
 
 enhancement_options = {
     "Histogram Equalization": "hist_eq",
@@ -217,13 +395,21 @@ selected_enhancements = st.sidebar.multiselect(
 )
 
 # CNN Denoising
-st.sidebar.markdown("#### Deep Learning Denoising")
+st.sidebar.markdown("""
+<div style='background: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 4px solid #9B59B6; margin-top: 20px; margin-bottom: 15px;'>
+<h4 style='color: #0052A3; margin-top: 0;'>🤖 Deep Learning Denoising</h4>
+</div>
+""", unsafe_allow_html=True)
 use_cnn = st.sidebar.checkbox("Enable CNN Denoising", value=True)
 
 st.sidebar.markdown("---")
 
 # Apply Filters Button
-if st.sidebar.button("Apply All Processing", key="apply_filters", use_container_width=True):
+st.sidebar.markdown("""
+<div style='text-align: center; margin: 20px 0;'>
+""", unsafe_allow_html=True)
+
+if st.sidebar.button("⚡ APPLY ALL PROCESSING ⚡", key="apply_filters", use_container_width=True):
     if st.session_state.noisy_image is not None:
         st.session_state.filtered_images = {}
         
@@ -316,28 +502,40 @@ Image Enhancement and Noise Reduction Using Digital Filters
 # MAIN CONTENT - DISPLAY RESULTS
 # ============================================================================
 
-st.markdown('<div class="main-header">Image Enhancement & Noise Reduction</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Capstone Project: Image Enhancement and Noise Reduction Using Digital Filters</div>', unsafe_allow_html=True)
-st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+# Header
+st.markdown("""
+<div style='background: linear-gradient(135deg, #0052A3 0%, #004494 100%); padding: 40px 20px; border-radius: 15px; margin-bottom: 30px; box-shadow: 0 8px 32px rgba(0, 82, 163, 0.3);'>
+<h1 style='color: white; text-align: center; margin: 0; font-size: 3em;'>🖼️ IMAGE ENHANCEMENT & NOISE REDUCTION</h1>
+<p style='color: rgba(255,255,255,0.9); text-align: center; margin: 10px 0 0 0; font-size: 1.1em;'>BTech Capstone Project: Digital Filters & Deep Learning</p>
+</div>
+""", unsafe_allow_html=True)
 
 # Original and Noisy Images
 if st.session_state.original_image is not None:
-    st.markdown('<div class="subheader">Original & Noisy Images</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subheader">📸 Original & Noisy Images</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
     with col1:
+        st.markdown("""
+        <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
+        """, unsafe_allow_html=True)
         st.image(st.session_state.original_image, caption="📸 Original Image", use_container_width=True, clamp=True)
+        st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
         if st.session_state.noisy_image is not None:
+            st.markdown("""
+            <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
+            """, unsafe_allow_html=True)
             st.image(st.session_state.noisy_image, caption=f"🌪️ Noisy Image ({noise_type})", use_container_width=True, clamp=True)
+            st.markdown("</div>", unsafe_allow_html=True)
         else:
-            st.info("Generate noisy image from the sidebar")
+            st.info("📋 Generate noisy image from the sidebar")
 
 # Digital Filters and Enhancements
 if st.session_state.filtered_images:
-    st.markdown('<div class="subheader">Filters & Enhancements</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subheader">✨ Filters & Enhancements</div>', unsafe_allow_html=True)
     
     num_images = len(st.session_state.filtered_images)
     cols_per_row = 3
@@ -354,41 +552,66 @@ if st.session_state.filtered_images:
                 filtered_img = st.session_state.filtered_images[filter_name]
                 
                 with cols[col_idx]:
+                    st.markdown("""
+                    <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
+                    """, unsafe_allow_html=True)
                     st.image(filtered_img, caption=f"✨ {filter_name}", use_container_width=True, clamp=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
 # CNN-Based Denoising
 if st.session_state.cnn_denoised is not None:
-    st.markdown('<div class="subheader">Deep Learning Denoising</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subheader">🤖 Deep Learning Denoising</div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
+        st.markdown("""
+        <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
+        """, unsafe_allow_html=True)
         st.image(st.session_state.noisy_image, caption="🌪️ Noisy Input", use_container_width=True, clamp=True)
+        st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
-        st.image(st.session_state.cnn_denoised, caption="🤖 DnCNN Denoised", use_container_width=True, clamp=True)
+        st.markdown("""
+        <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
+        """, unsafe_allow_html=True)
+        st.image(st.session_state.cnn_denoised, caption="🤖 CNN Denoised", use_container_width=True, clamp=True)
+        st.markdown("</div>", unsafe_allow_html=True)
     
     with col3:
         if "Gaussian Blur" in st.session_state.filtered_images:
+            st.markdown("""
+            <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
+            """, unsafe_allow_html=True)
             st.image(st.session_state.filtered_images["Gaussian Blur"], 
-                    caption="🔍 Gaussian Blur (Comparison)", use_container_width=True, clamp=True)
+                    caption="🔍 Gaussian Blur", use_container_width=True, clamp=True)
+            st.markdown("</div>", unsafe_allow_html=True)
         else:
-            st.info("Apply Gaussian Blur for comparison")
+            st.markdown("""
+            <div style='background: #d1ecf1; padding: 20px; border-radius: 10px; border-left: 4px solid #17a2b8; text-align: center;'>
+            <p style='color: #0c5460; margin: 0;'>📋 Apply Gaussian Blur for comparison</p>
+            </div>
+            """, unsafe_allow_html=True)
     
     # Display CNN Evaluation Metrics
     st.markdown("---")
     if st.session_state.original_image is not None:
         psnr = compute_psnr(st.session_state.original_image, st.session_state.cnn_denoised)
-        st.metric(
-            label="🎯 CNN PSNR",
-            value=f"{psnr:.2f} dB",
-            help="Peak Signal-to-Noise Ratio: Higher is better."
-        )
+        col_metric1, col_metric2, col_metric3 = st.columns(3)
+        
+        with col_metric1:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); color: white; padding: 20px; border-radius: 10px; text-align: center; box-shadow: 0 4px 15px rgba(0,153,204,0.3);'>
+            <h4 style='margin: 0; color: white;'>🎯 PSNR</h4>
+            <p style='font-size: 2em; margin: 10px 0 0 0; font-weight: bold;'>{psnr:.2f} dB</p>
+            <small style='color: rgba(255,255,255,0.8);'>Peak Signal-to-Noise Ratio</small>
+            </div>
+            """, unsafe_allow_html=True)
 
 # Save Results
-st.markdown('<div class="subheader">Save Results</div>', unsafe_allow_html=True)
+st.markdown('<div class="subheader">💾 Save Results</div>', unsafe_allow_html=True)
 
-if st.button("Save All Images", key="save_all", use_container_width=True):
+if st.button("💾 SAVE ALL IMAGES", key="save_all", use_container_width=True):
     output_dir = Path("outputs")
     output_dir.mkdir(exist_ok=True)
     
@@ -414,13 +637,38 @@ if st.button("Save All Images", key="save_all", use_container_width=True):
         save_image(st.session_state.cnn_denoised, "04_dncnn_denoised.png")
         saved_files.append("✅ dncnn_denoised.png")
     
-    st.success("✅ All images saved!")
-    st.info("\n".join(saved_files))
+    st.markdown("""
+    <div style='background: #d4edda; color: #155724; padding: 20px; border-radius: 10px; border-left: 5px solid #28a745; margin: 20px 0;'>
+    <h4 style='margin-top: 0; color: #155724;'>✅ All images saved successfully!</h4>
+    <p style='margin: 0;'><strong>Saved files:</strong></p>
+    </div>
+    """, unsafe_allow_html=True)
+    for file in saved_files:
+        st.markdown(f"- {file}")
 
 st.markdown("---")
 st.markdown("""
-### 📚 About This Application
-- **PART A:** Upload an image and add synthetic noise (Gaussian or Salt & Pepper)
-- **PART B:** Apply digital filters (Average, Gaussian, Median, Bilateral, etc.) and enhancement methods (Histogram Equalization, CLAHE)
-- **PART C:** Use deep learning (pretrained DnCNN) for advanced denoising
-""")
+<div style='background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; border-left: 5px solid #0052A3;'>
+<h3 style='color: #0052A3; margin-top: 0;'>📚 About This Application</h3>
+
+<div style='background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #4ECDC4;'>
+<h4 style='color: #0052A3; margin-top: 0;'>🎯 PART A: Image Upload & Noise Generation</h4>
+<p style='margin: 0;'>Upload an image and add synthetic noise (Gaussian or Salt & Pepper) with configurable parameters</p>
+</div>
+
+<div style='background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #FF6B6B;'>
+<h4 style='color: #0052A3; margin-top: 0;'>🎛️ PART B: Digital Filters & Enhancements</h4>
+<p style='margin: 0;'>Apply 7+ digital filters and 5+ enhancement techniques (Histogram Equalization, CLAHE, Contrast Stretching, Gamma Correction)</p>
+</div>
+
+<div style='background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #9B59B6;'>
+<h4 style='color: #0052A3; margin-top: 0;'>🤖 PART C: Deep Learning Denoising</h4>
+<p style='margin: 0;'>Use pretrained DnCNN models for advanced AI-powered denoising with automatic model selection</p>
+</div>
+
+<div style='margin-top: 20px; padding: 15px; background: #f0f2f6; border-radius: 8px;'>
+<p style='margin: 0; color: #555;'><strong>🛠️ Technologies:</strong> Python • OpenCV • TensorFlow/Keras • Streamlit • Deep Learning</p>
+<p style='margin: 10px 0 0 0; color: #555;'><strong>📍 Dataset:</strong> BSD68 (68 images with data augmentation)</p>
+</div>
+</div>
+""", unsafe_allow_html=True)
