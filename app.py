@@ -1,6 +1,5 @@
 """
-Streamlit application for Image Enhancement and Noise Reduction.
-Capstone Project: Image Enhancement and Noise Reduction Using Digital Filters
+Image Enhancement & Noise Reduction
 """
 
 import streamlit as st
@@ -11,664 +10,483 @@ import torch
 from pathlib import Path
 import pandas as pd
 
-# Import custom modules
 from utils import load_image, add_gaussian_noise, add_salt_pepper_noise, save_image, normalize_image, denormalize_image
-from filters import (average_filter, gaussian_blur, median_filter_cv, 
-                    bilateral_filter, sharpening_filter, 
-                    morphological_opening, morphological_closing)
-from enhancement import (histogram_equalization, clahe_enhancement, 
-                        adaptive_histogram_equalization, contrast_stretching, gamma_correction)
+from filters import (average_filter, gaussian_blur, median_filter_cv,
+                     bilateral_filter, sharpening_filter,
+                     morphological_opening, morphological_closing)
+from enhancement import (histogram_equalization, clahe_enhancement,
+                         adaptive_histogram_equalization, contrast_stretching, gamma_correction)
 from cnn_denoise import load_dncnn_model, denoise_image_dncnn, load_keras_cnn_model, denoise_image_keras_cnn
 
 
-# ============================================================================
-# UTILITY FUNCTIONS
-# ============================================================================
-
 def compute_psnr(original, denoised):
-    """
-    Compute Peak Signal-to-Noise Ratio (PSNR) between two images.
-    
-    Args:
-        original: Original clean image (numpy array, 0-255)
-        denoised: Denoised image (numpy array, 0-255)
-        
-    Returns:
-        PSNR value in dB
-    """
-    import numpy as np
-    
-    # Ensure images are float for computation
     original = original.astype(np.float32)
     denoised = denoised.astype(np.float32)
-    
-    # Calculate MSE
     mse = np.mean((original - denoised) ** 2)
-    
     if mse == 0:
         return float('inf')
-    
-    # Calculate PSNR
-    psnr = 10 * np.log10(255.0 ** 2 / mse)
-    
-    return psnr
-# PAGE CONFIGURATION
-# ============================================================================
+    return 10 * np.log10(255.0 ** 2 / mse)
 
+
+# ─────────────────────────────────────────────
+#  PAGE CONFIG
+# ─────────────────────────────────────────────
 st.set_page_config(
-    page_title="Image Enhancement & Noise Reduction",
-    page_icon="🖼️",
+  page_title="Image Enhancement",
+    page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Advanced Professional CSS with Modern Design
+# ─────────────────────────────────────────────
+#  CSS
+# ─────────────────────────────────────────────
 st.markdown("""
-    <style>
-    /* Root Variables */
-    :root {
-        --primary-color: #0052A3;
-        --secondary-color: #FF6B6B;
-        --accent-color: #4ECDC4;
-        --dark-bg: #1a1a1a;
-        --light-bg: #f8f9fa;
-        --text-dark: #2c3e50;
-        --border-color: #e0e0e0;
-    }
-    
-    /* Main Container */
-    .main {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        padding: 0 !important;
-    }
-    
-    /* Main Header */
-    .main-header {
-        background: linear-gradient(135deg, #0052A3 0%, #004494 100%);
-        color: white;
-        font-size: 3em;
-        font-weight: 800;
-        text-align: center;
-        margin-bottom: 10px;
-        padding: 40px 20px;
-        border-radius: 15px;
-        box-shadow: 0 8px 32px rgba(0, 82, 163, 0.3);
-        letter-spacing: 1px;
-        text-transform: uppercase;
-    }
-    
-    /* Subtitle */
-    .subtitle {
-        font-size: 1.2em;
-        color: #555;
-        text-align: center;
-        margin-bottom: 30px;
-        font-weight: 500;
-        letter-spacing: 0.5px;
-    }
-    
-    /* Subheader Sections */
-    .subheader {
-        font-size: 1.5em;
-        font-weight: 700;
-        color: white;
-        background: linear-gradient(135deg, #0052A3 0%, #004494 100%);
-        padding: 15px 25px;
-        margin-top: 40px;
-        margin-bottom: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #FF6B6B;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* Section divider */
-    .section-divider {
-        margin: 40px 0;
-        border-top: 3px solid #0052A3;
-        border-radius: 2px;
-    }
-    
-    /* Card styling */
-    .card {
-        background: white;
-        padding: 25px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-        margin: 15px 0;
-        border-left: 5px solid #0052A3;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    
-    .card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
-    }
-    
-    /* Button styling */
-    .stButton > button {
-        background: linear-gradient(135deg, #0052A3 0%, #004494 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 12px 30px;
-        font-weight: 600;
-        font-size: 1em;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(0, 82, 163, 0.3);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .stButton > button:hover {
-        background: linear-gradient(135deg, #004494 0%, #003d7a 100%);
-        box-shadow: 0 6px 20px rgba(0, 82, 163, 0.4);
-        transform: translateY(-2px);
-    }
-    
-    /* Metric styling */
-    .metric-container {
-        background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(0, 153, 204, 0.3);
-    }
-    
-    /* Success message */
-    .success-box {
-        background: #d4edda;
-        color: #155724;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 5px solid #28a745;
-        margin: 10px 0;
-    }
-    
-    /* Info message */
-    .info-box {
-        background: #d1ecf1;
-        color: #0c5460;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 5px solid #17a2b8;
-        margin: 10px 0;
-    }
-    
-    /* Warning message */
-    .warning-box {
-        background: #fff3cd;
-        color: #856404;
-        padding: 15px;
-        border-radius: 8px;
-        border-left: 5px solid #ffc107;
-        margin: 10px 0;
-    }
-    
-    /* Sidebar styling */
-    .sidebar .sidebar-content {
-        background: white;
-    }
-    
-    /* Image container */
-    .image-container {
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        background: white;
-        padding: 10px;
-    }
-    
-    /* Grid layout for images */
-    .image-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 20px;
-        margin: 20px 0;
-    }
-    
-    /* Text styling */
-    h1, h2, h3 {
-        color: #0052A3;
-        font-weight: 700;
-    }
-    
-    /* Links */
-    a {
-        color: #0052A3;
-        text-decoration: none;
-        font-weight: 600;
-    }
-    
-    a:hover {
-        color: #FF6B6B;
-        text-decoration: underline;
-    }
-    
-    /* Scrollbar styling */
-    ::-webkit-scrollbar {
-        width: 10px;
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: #f1f1f1;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: #0052A3;
-        border-radius: 5px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: #004494;
-    }
-    </style>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root{
+  --ink:       #0d1117;
+  --ink-2:     #1c2333;
+  --ink-3:     #4a5568;
+  --ink-4:     #8a9ab8;
+  --rule:      #e4e9f0;
+  --surface:   #f7f9fc;
+  --white:     #ffffff;
+  --blue:      #1a56db;
+  --blue-soft: #eff4ff;
+  --blue-mid:  #c7d9ff;
+  --teal:      #0e9f8a;
+  --teal-soft: #ecfdf5;
+  --amber:     #d97706;
+  --amber-soft:#fffbeb;
+  --rose:      #e11d48;
+  --rose-soft: #fff1f3;
+  --violet:    #7c3aed;
+  --violet-soft:#f5f3ff;
+  --ff:        'Outfit', sans-serif;
+  --mono:      'JetBrains Mono', monospace;
+  --r4:  4px; --r8:8px; --r12:12px; --r16:16px; --r20:20px;
+}
+
+*{ font-family: var(--ff); }
+html, body, [class*="css"]{ background: #eef2f9 !important; }
+.main{ background: #eef2f9 !important; }
+.block-container{ padding: 2.5rem 2.5rem 5rem !important; max-width: 1480px !important; }
+
+/* ── Sidebar ── */
+section[data-testid="stSidebar"]{ background: var(--ink) !important; border-right:none !important; min-width:290px !important; }
+section[data-testid="stSidebar"] .block-container, section[data-testid="stSidebar"] > div { padding:0 !important; }
+section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] small { color:#94a3b8 !important; font-size:0.82rem !important; }
+section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3, section[data-testid="stSidebar"] h4 { color:#f1f5f9 !important; }
+section[data-testid="stSidebar"] [data-baseweb="select"] > div { background:#1c2a3a !important; border-color:#2d3f55 !important; color:#e2e8f0 !important; border-radius:var(--r8) !important; font-size:0.82rem !important; }
+section[data-testid="stSidebar"] [data-testid="stFileUploader"]{ background:#131e2e !important; border:1px dashed #2d4060 !important; border-radius:var(--r12) !important; padding:12px !important; }
+section[data-testid="stSidebar"] [data-testid="stFileUploader"] * { color:#64748b !important; }
+
+/* ── Buttons ── */
+.stButton > button { font-family:var(--ff) !important; font-weight:700 !important; font-size:0.78rem !important; letter-spacing:0.07em !important; text-transform:uppercase !important; border:none !important; border-radius:var(--r8) !important; padding:10px 20px !important; transition:all 0.18s ease !important; cursor:pointer !important; }
+section[data-testid="stSidebar"] .stButton > button { background:var(--blue) !important; color:#fff !important; width:100% !important; box-shadow:0 2px 8px rgba(26,86,219,.30) !important; }
+section[data-testid="stSidebar"] .stButton > button:hover { background:#1648c2 !important; box-shadow:0 4px 16px rgba(26,86,219,.45) !important; transform:translateY(-1px) !important; }
+.main .stButton > button { background:var(--ink) !important; color:#fff !important; box-shadow:0 2px 8px rgba(13,17,23,.18) !important; padding:12px 32px !important; }
+.main .stButton > button:hover { background:var(--ink-2) !important; box-shadow:0 4px 20px rgba(13,17,23,.28) !important; transform:translateY(-1px) !important; }
+
+/* ── Hero ── */
+.pf-hero { background:var(--ink); border-radius:var(--r20); padding:56px 60px; margin-bottom:40px; display:flex; align-items:center; justify-content:space-between; gap:40px; position:relative; overflow:hidden; }
+.pf-hero::before { content:''; position:absolute; inset:0; background: radial-gradient(ellipse 55% 70% at 0% 100%, rgba(26,86,219,0.25) 0%,transparent 60%), radial-gradient(ellipse 40% 55% at 100% 0%,rgba(14,159,138,0.18) 0%,transparent 55%); pointer-events:none; }
+.pf-hero-left { position:relative; z-index:1; }
+.pf-hero-tag { display:inline-flex; align-items:center; gap:8px; background:rgba(26,86,219,0.18); border:1px solid rgba(26,86,219,0.35); border-radius:100px; padding:5px 14px; font-size:0.68rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#93b8ff; margin-bottom:20px; }
+.pf-hero-tag::before { content:''; display:inline-block; width:6px; height:6px; border-radius:50%; background:#4a9eff; box-shadow:0 0 6px #4a9eff; animation:blink 2s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.pf-hero h1 { font-size:3rem; font-weight:900; color:#fff; margin:0 0 14px; line-height:1.08; letter-spacing:-1.5px; }
+.pf-hero h1 em { font-style:normal; background:linear-gradient(90deg,#60a5fa 0%,#34d399 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.pf-hero p { font-size:1rem; font-weight:300; color:#64748b; margin:0; max-width:480px; line-height:1.7; }
+.pf-hero-right { position:relative; z-index:1; display:flex; gap:14px; }
+.pf-stat { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:var(--r16); padding:22px 26px; text-align:center; min-width:110px; }
+.pf-stat-num { font-size:2rem; font-weight:900; color:#fff; letter-spacing:-1px; line-height:1; }
+.pf-stat-label { font-size:0.68rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:#475569; margin-top:6px; }
+
+/* ── Section Header ── */
+.pf-section { display:flex; align-items:center; gap:16px; margin:48px 0 24px; }
+.pf-section-pill { background:var(--blue); color:#fff; font-size:0.62rem; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; padding:5px 12px; border-radius:100px; white-space:nowrap; }
+.pf-section h2 { font-size:1.25rem; font-weight:800; color:var(--ink); margin:0; letter-spacing:-0.5px; white-space:nowrap; }
+.pf-section-rule { flex:1; height:1px; background:var(--rule); }
+
+/* ── Image Card ── */
+.pf-card { background:var(--white); border-radius:var(--r16); padding:20px; border:1px solid var(--rule); box-shadow:0 1px 4px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04); transition:box-shadow .2s,border-color .2s,transform .2s; }
+.pf-card:hover { box-shadow:0 4px 24px rgba(0,0,0,.10); border-color:#c7d9ff; transform:translateY(-2px); }
+.pf-card-header { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+.pf-card-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.pf-card-title { font-size:0.72rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-3); }
+
+/* ── Metric Cards ── */
+.pf-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:28px 0 8px; }
+.pf-metric { background:var(--white); border:1px solid var(--rule); border-radius:var(--r16); padding:26px 28px; position:relative; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.04); }
+.pf-metric::after { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+.pf-metric.blue::after  { background:linear-gradient(90deg,#1a56db,#60a5fa); }
+.pf-metric.teal::after  { background:linear-gradient(90deg,#0e9f8a,#34d399); }
+.pf-metric.violet::after{ background:linear-gradient(90deg,#7c3aed,#a78bfa); }
+.pf-metric-label { font-size:0.68rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-4); margin-bottom:8px; }
+.pf-metric-value { font-size:2.6rem; font-weight:900; color:var(--ink); line-height:1; letter-spacing:-2px; }
+.pf-metric-unit { font-size:1rem; font-weight:400; color:var(--ink-4); letter-spacing:0; }
+.pf-metric-sub { font-size:0.75rem; color:var(--ink-4); margin-top:6px; }
+
+/* ── Alerts ── */
+.pf-alert { border-radius:var(--r12); padding:16px 20px; margin:12px 0; display:flex; gap:12px; align-items:flex-start; font-size:0.85rem; line-height:1.6; }
+.pf-alert.info { background:var(--blue-soft); border:1px solid var(--blue-mid); color:#1e40af; }
+.pf-alert.success { background:var(--teal-soft); border:1px solid #a7f3d0; color:#065f46; }
+.pf-alert strong { font-weight:700; display:block; margin-bottom:2px; }
+
+/* ── About ── */
+.pf-about { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:24px 0; }
+.pf-about-card { background:var(--white); border:1px solid var(--rule); border-radius:var(--r16); padding:28px 26px; box-shadow:0 1px 4px rgba(0,0,0,.04); transition:border-color .2s,box-shadow .2s; }
+.pf-about-card:hover { border-color:#c7d9ff; box-shadow:0 4px 20px rgba(0,0,0,.08); }
+.pf-about-icon { width:44px; height:44px; border-radius:var(--r8); display:flex; align-items:center; justify-content:center; font-size:1.3rem; margin-bottom:16px; }
+.pf-about-icon.blue   { background:var(--blue-soft); }
+.pf-about-icon.teal   { background:var(--teal-soft); }
+.pf-about-icon.violet { background:var(--violet-soft); }
+.pf-about-card h3 { font-size:0.95rem; font-weight:800; color:var(--ink); margin:0 0 10px; letter-spacing:-0.3px; }
+.pf-about-card p { font-size:0.82rem; color:var(--ink-3); line-height:1.75; margin:0; }
+.pf-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:16px; }
+.pf-tag { background:#f1f5f9; border:1px solid #dde3ed; color:var(--ink-3); font-size:0.7rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; padding:4px 10px; border-radius:100px; }
+
+/* ── Save ── */
+.pf-save-item { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--rule); font-size:0.82rem; color:var(--ink-3); font-family:var(--mono); }
+.pf-save-check { background:var(--teal-soft); color:var(--teal); font-weight:800; font-size:0.7rem; width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+/* ── Sidebar structure ── */
+.sb-brand { padding:28px 20px 20px; border-bottom:1px solid #1c2a3a; margin-bottom:8px; }
+.sb-brand-name { font-size:1.15rem; font-weight:900; color:#f1f5f9; letter-spacing:-0.5px; }
+.sb-brand-sub { font-size:0.7rem; color:#334155; font-weight:500; letter-spacing:0.06em; margin-top:2px; }
+.sb-label { font-size:0.62rem !important; font-weight:800 !important; letter-spacing:0.14em !important; text-transform:uppercase !important; color:#334155 !important; padding:18px 20px 8px !important; display:block; border-top:1px solid #1c2a3a; margin-top:4px; }
+
+/* ── Global ── */
+[data-testid="stImage"] img { border-radius:var(--r8) !important; }
+#MainMenu{visibility:hidden;} footer{visibility:hidden;} header{visibility:hidden;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:#f1f5f9;}
+::-webkit-scrollbar-thumb{background:#c7d9ff;border-radius:5px;}
+[data-testid="column"]{padding:0 8px !important;}
+</style>
 """, unsafe_allow_html=True)
 
-# ============================================================================
-# INITIALIZE SESSION STATE
-# ============================================================================
 
-if 'original_image' not in st.session_state:
-    st.session_state.original_image = None
-if 'noisy_image' not in st.session_state:
-    st.session_state.noisy_image = None
-if 'filtered_images' not in st.session_state:
-    st.session_state.filtered_images = {}
-if 'cnn_denoised' not in st.session_state:
-    st.session_state.cnn_denoised = None
-if 'dncnn_model' not in st.session_state:
-    st.session_state.dncnn_model = None
-if 'keras_cnn_model' not in st.session_state:
-    st.session_state.keras_cnn_model = None
-if 'noise_params' not in st.session_state:
-    st.session_state.noise_params = None
+# ─────────────────────────────────────────────
+#  SESSION STATE
+# ─────────────────────────────────────────────
+for k, v in [
+    ('original_image', None), ('noisy_image', None),
+    ('filtered_images', {}),  ('cnn_denoised', None),
+    ('dncnn_model', None),    ('keras_cnn_model', None),
+    ('noise_params', None),
+]:
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 
-# ============================================================================
-# SIDEBAR - CONTROLS
-# ============================================================================
+# ─────────────────────────────────────────────
+#  SIDEBAR
+# ─────────────────────────────────────────────
+sb = st.sidebar
 
-st.sidebar.markdown("""
-<div style='background: linear-gradient(135deg, #0052A3 0%, #004494 100%); padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 20px;'>
-<h2 style='color: white; margin: 0;'>🎮 Control Panel</h2>
+sb.markdown("""
+<div class="sb-brand">
+  <div class="sb-brand-name">🔬 Image Enhancement</div>
+  <div class="sb-brand-sub">Image Enhancement Studio</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Image Upload
-st.sidebar.markdown("""
-<div style='background: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 4px solid #0052A3; margin-bottom: 15px;'>
-<h4 style='color: #0052A3; margin-top: 0;'>📸 Upload Image</h4>
-</div>
-""", unsafe_allow_html=True)
-uploaded_file = st.sidebar.file_uploader(
-    "Select image (JPG/PNG)",
-    type=["jpg", "jpeg", "png"]
-)
-
-if uploaded_file is not None:
+sb.markdown('<span class="sb-label">01 · Upload Image</span>', unsafe_allow_html=True)
+uploaded_file = sb.file_uploader("Choose JPG or PNG", type=["jpg","jpeg","png"], label_visibility="collapsed")
+if uploaded_file:
     try:
         st.session_state.original_image = load_image(uploaded_file)
-        st.sidebar.success("✅ Image loaded successfully!")
+        sb.success("Image loaded successfully.")
     except Exception as e:
-        st.sidebar.error(f"❌ Error loading image: {e}")
+        sb.error(f"Error: {e}")
 
-# Noise Parameters
-st.sidebar.markdown("""
-<div style='background: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 4px solid #FF6B6B; margin-top: 20px; margin-bottom: 15px;'>
-<h4 style='color: #0052A3; margin-top: 0;'>🌪️ Noise Configuration</h4>
-</div>
-""", unsafe_allow_html=True)
-noise_type = st.sidebar.selectbox(
-    "Noise Type",
-    ["Gaussian Noise", "Salt & Pepper Noise"]
-)
-
+sb.markdown('<span class="sb-label">02 · Add Noise</span>', unsafe_allow_html=True)
+noise_type = sb.selectbox("Type", ["Gaussian Noise", "Salt & Pepper Noise"], label_visibility="collapsed")
 if noise_type == "Gaussian Noise":
-    noise_std = st.sidebar.slider("Gaussian Std Dev", 5, 50, 25, step=1)
+    noise_std = sb.slider("Std Dev", 5, 50, 25)
     noise_params = {"type": "gaussian", "std": noise_std}
 else:
-    salt_prob = st.sidebar.slider("Salt Probability", 0.01, 0.1, 0.05, step=0.01)
-    pepper_prob = st.sidebar.slider("Pepper Probability", 0.01, 0.1, 0.05, step=0.01)
+    salt_prob   = sb.slider("Salt %",   0.01, 0.10, 0.05, 0.01)
+    pepper_prob = sb.slider("Pepper %", 0.01, 0.10, 0.05, 0.01)
     noise_params = {"type": "salt_pepper", "salt_prob": salt_prob, "pepper_prob": pepper_prob}
 
-# Generate Noisy Image
-if st.sidebar.button("🔧 Generate Noisy Image", key="generate_noise"):
+if sb.button("Generate Noisy Image", key="gen_noise"):
     if st.session_state.original_image is not None:
         st.session_state.noise_params = noise_params
         if noise_params["type"] == "gaussian":
-            st.session_state.noisy_image = add_gaussian_noise(
-                st.session_state.original_image,
-                std=noise_params["std"]
-            )
+            st.session_state.noisy_image = add_gaussian_noise(st.session_state.original_image, std=noise_params["std"])
         else:
-            st.session_state.noisy_image = add_salt_pepper_noise(
-                st.session_state.original_image,
-                salt_prob=noise_params["salt_prob"],
-                pepper_prob=noise_params["pepper_prob"]
-            )
-        st.sidebar.success("✅ Noisy image generated!")
+            st.session_state.noisy_image = add_salt_pepper_noise(st.session_state.original_image,
+                salt_prob=noise_params["salt_prob"], pepper_prob=noise_params["pepper_prob"])
+        sb.success("Noisy image generated.")
     else:
-        st.sidebar.warning("⚠️ Please upload an image first!")
+        sb.warning("Upload an image first.")
 
-st.sidebar.markdown("""
----
-<div style='background: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 4px solid #4ECDC4; margin-top: 20px; margin-bottom: 15px;'>
-<h4 style='color: #0052A3; margin-top: 0;'>🎛️ Digital Filters</h4>
-</div>
-""", unsafe_allow_html=True)
-
+sb.markdown('<span class="sb-label">03 · Digital Filters</span>', unsafe_allow_html=True)
 filter_options = {
-    "Average Filter": "average",
-    "Gaussian Blur": "gaussian",
-    "Median Filter": "median",
-    "Bilateral Filter": "bilateral",
-    "Sharpening": "sharpening",
+    "Average Filter":        "average",
+    "Gaussian Blur":         "gaussian",
+    "Median Filter":         "median",
+    "Bilateral Filter":      "bilateral",
+    "Sharpening":            "sharpening",
     "Morphological Opening": "morph_open",
-    "Morphological Closing": "morph_close"
+    "Morphological Closing": "morph_close",
 }
+selected_filters = sb.multiselect("Filters", list(filter_options.keys()),
+    default=["Gaussian Blur","Median Filter"], label_visibility="collapsed")
 
-selected_filters = st.sidebar.multiselect(
-    "Select Filters",
-    list(filter_options.keys()),
-    default=["Gaussian Blur", "Median Filter"]
-)
-
-# Enhancement Methods
-st.sidebar.markdown("""
-<div style='background: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 4px solid #FFA502; margin-top: 20px; margin-bottom: 15px;'>
-<h4 style='color: #0052A3; margin-top: 0;'>✨ Enhancement Methods</h4>
-</div>
-""", unsafe_allow_html=True)
-
+sb.markdown('<span class="sb-label">04 · Enhancement</span>', unsafe_allow_html=True)
 enhancement_options = {
     "Histogram Equalization": "hist_eq",
-    "CLAHE": "clahe",
-    "Contrast Stretching": "contrast",
-    "Gamma Correction": "gamma"
+    "CLAHE":                  "clahe",
+    "Contrast Stretching":    "contrast",
+    "Gamma Correction":       "gamma",
 }
+selected_enhancements = sb.multiselect("Methods", list(enhancement_options.keys()),
+    default=["CLAHE"], label_visibility="collapsed")
 
-selected_enhancements = st.sidebar.multiselect(
-    "Select Methods",
-    list(enhancement_options.keys()),
-    default=["CLAHE"]
-)
+sb.markdown('<span class="sb-label">05 · Deep Learning</span>', unsafe_allow_html=True)
+use_cnn = sb.checkbox("Enable CNN Denoising", value=True)
 
-# CNN Denoising
-st.sidebar.markdown("""
-<div style='background: #f0f2f6; padding: 15px; border-radius: 8px; border-left: 4px solid #9B59B6; margin-top: 20px; margin-bottom: 15px;'>
-<h4 style='color: #0052A3; margin-top: 0;'>🤖 Deep Learning Denoising</h4>
-</div>
-""", unsafe_allow_html=True)
-use_cnn = st.sidebar.checkbox("Enable CNN Denoising", value=True)
+sb.markdown('<span class="sb-label" style="padding-bottom:14px;"></span>', unsafe_allow_html=True)
 
-st.sidebar.markdown("---")
-
-# Apply Filters Button
-st.sidebar.markdown("""
-<div style='text-align: center; margin: 20px 0;'>
-""", unsafe_allow_html=True)
-
-if st.sidebar.button("⚡ APPLY ALL PROCESSING ⚡", key="apply_filters", use_container_width=True):
+if sb.button("⚡  Run Full Pipeline", key="apply_all", use_container_width=True):
     if st.session_state.noisy_image is not None:
         st.session_state.filtered_images = {}
-        
-        # Apply selected filters
-        for filter_name, filter_key in filter_options.items():
-            if filter_name in selected_filters:
+        for fname, fkey in filter_options.items():
+            if fname in selected_filters:
                 try:
-                    if filter_key == "average":
-                        st.session_state.filtered_images[filter_name] = average_filter(st.session_state.noisy_image)
-                    elif filter_key == "gaussian":
-                        st.session_state.filtered_images[filter_name] = gaussian_blur(st.session_state.noisy_image)
-                    elif filter_key == "median":
-                        st.session_state.filtered_images[filter_name] = median_filter_cv(st.session_state.noisy_image)
-                    elif filter_key == "bilateral":
-                        st.session_state.filtered_images[filter_name] = bilateral_filter(st.session_state.noisy_image)
-                    elif filter_key == "sharpening":
-                        st.session_state.filtered_images[filter_name] = sharpening_filter(st.session_state.noisy_image)
-                    elif filter_key == "morph_open":
-                        st.session_state.filtered_images[filter_name] = morphological_opening(st.session_state.noisy_image)
-                    elif filter_key == "morph_close":
-                        st.session_state.filtered_images[filter_name] = morphological_closing(st.session_state.noisy_image)
+                    m = {"average": average_filter, "gaussian": gaussian_blur, "median": median_filter_cv,
+                         "bilateral": bilateral_filter, "sharpening": sharpening_filter,
+                         "morph_open": morphological_opening, "morph_close": morphological_closing}
+                    st.session_state.filtered_images[fname] = m[fkey](st.session_state.noisy_image)
                 except Exception as e:
-                    st.warning(f"Error applying {filter_name}: {e}")
-        
-        # Apply selected enhancements
-        base_image = st.session_state.filtered_images.get(selected_filters[0] if selected_filters else "Gaussian Blur", 
-                                                          st.session_state.noisy_image)
-        
-        for enh_name, enh_key in enhancement_options.items():
-            if enh_name in selected_enhancements:
+                    sb.warning(f"{fname}: {e}")
+
+        base = st.session_state.filtered_images.get(
+            selected_filters[0] if selected_filters else None,
+            st.session_state.noisy_image)
+        for ename, ekey in enhancement_options.items():
+            if ename in selected_enhancements:
                 try:
-                    if enh_key == "hist_eq":
-                        st.session_state.filtered_images[enh_name] = histogram_equalization(base_image)
-                    elif enh_key == "clahe":
-                        st.session_state.filtered_images[enh_name] = clahe_enhancement(base_image)
-                    elif enh_key == "contrast":
-                        st.session_state.filtered_images[enh_name] = contrast_stretching(base_image)
-                    elif enh_key == "gamma":
-                        st.session_state.filtered_images[enh_name] = gamma_correction(base_image, gamma=0.8)
+                    em = {"hist_eq": histogram_equalization, "clahe": clahe_enhancement,
+                          "contrast": contrast_stretching, "gamma": lambda i: gamma_correction(i, gamma=0.8)}
+                    st.session_state.filtered_images[ename] = em[ekey](base)
                 except Exception as e:
-                    st.warning(f"Error applying {enh_name}: {e}")
-        
-        # Apply CNN denoising if enabled
+                    sb.warning(f"{ename}: {e}")
+
         if use_cnn:
             try:
-                # Automatic CNN model selection based on noise type and intensity
-                if st.session_state.noise_params is not None:
-                    noise_info = st.session_state.noise_params
-                    
-                    if noise_info["type"] == "gaussian":
-                        # Select model based on Gaussian noise sigma
-                        sigma = noise_info["std"]
-                        if sigma <= 20:
-                            model_path = './models/cnn_denoiser_sigma15.h5'
-                        elif sigma <= 30:
-                            model_path = './models/cnn_denoiser_sigma25.h5'
-                        else:
-                            model_path = './models/cnn_denoiser_sigma35.h5'
-                    else:
-                        # Salt & Pepper noise
-                        model_path = './models/cnn_denoiser_saltpepper.h5'
-                    
-                    # Load selected model
-                    st.session_state.keras_cnn_model = load_keras_cnn_model(model_path)
-                    
-                    # Run CNN denoising
-                    st.session_state.cnn_denoised = denoise_image_keras_cnn(
-                        st.session_state.noisy_image,
-                        model=st.session_state.keras_cnn_model
-                    )
+                ni = st.session_state.noise_params
+                if ni and ni["type"] == "gaussian":
+                    s = ni["std"]
+                    mp = './models/cnn_denoiser_sigma15.h5' if s<=20 else ('./models/cnn_denoiser_sigma25.h5' if s<=30 else './models/cnn_denoiser_sigma35.h5')
+                else:
+                    mp = './models/cnn_denoiser_saltpepper.h5'
+                st.session_state.keras_cnn_model = load_keras_cnn_model(mp)
+                st.session_state.cnn_denoised = denoise_image_keras_cnn(
+                    st.session_state.noisy_image, model=st.session_state.keras_cnn_model)
             except Exception as e:
-                st.warning(f"Error in CNN denoising: {e}")
+                sb.warning(f"CNN: {e}")
+        sb.success("Pipeline complete.")
     else:
-        st.warning("⚠️ Please generate a noisy image first!")
+        sb.warning("Generate a noisy image first.")
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("#### About")
-st.sidebar.markdown("""
-**Capstone Project**
-Image Enhancement and Noise Reduction Using Digital Filters
-
-**Technologies**
-- Python, OpenCV, NumPy
-- TensorFlow/Keras
-- Streamlit
-""")
-
-
-# ============================================================================
-# MAIN CONTENT - DISPLAY RESULTS
-# ============================================================================
-
-# Header
-st.markdown("""
-<div style='background: linear-gradient(135deg, #0052A3 0%, #004494 100%); padding: 40px 20px; border-radius: 15px; margin-bottom: 30px; box-shadow: 0 8px 32px rgba(0, 82, 163, 0.3);'>
-<h1 style='color: white; text-align: center; margin: 0; font-size: 3em;'>🖼️ IMAGE ENHANCEMENT & NOISE REDUCTION</h1>
-<p style='color: rgba(255,255,255,0.9); text-align: center; margin: 10px 0 0 0; font-size: 1.1em;'>BTech Capstone Project: Digital Filters & Deep Learning</p>
+sb.markdown("""
+<div style="padding:20px;text-align:center;margin-top:8px;">
+  <span style="font-size:0.68rem;color:#1e2d40;">Image Enhancement and Noise Reduction</span>
 </div>
 """, unsafe_allow_html=True)
 
-# Original and Noisy Images
+
+# ─────────────────────────────────────────────
+#  MAIN CONTENT
+# ─────────────────────────────────────────────
+
+# Hero
+st.markdown("""
+<div class="pf-hero">
+  <div class="pf-hero-left">
+    <div class="pf-hero-tag">Research Pipeline</div>
+    <h1>Image Enhancement<br>&amp; <em>Noise Reduction</em></h1>
+    <p>Classical digital filters, histogram techniques, and deep learning denoising combined in a single evaluation pipeline.</p>
+  </div>
+  <div class="pf-hero-right">
+    <div class="pf-stat"><div class="pf-stat-num">7</div><div class="pf-stat-label">Filters</div></div>
+    <div class="pf-stat"><div class="pf-stat-num">4</div><div class="pf-stat-label">Enhance</div></div>
+    <div class="pf-stat"><div class="pf-stat-num">4</div><div class="pf-stat-label">CNN Models</div></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# Section 01 — Source & Noisy
 if st.session_state.original_image is not None:
-    st.markdown('<div class="subheader">📸 Original & Noisy Images</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-        """, unsafe_allow_html=True)
-        st.image(st.session_state.original_image, caption="📸 Original Image", use_container_width=True, clamp=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    with col2:
-        if st.session_state.noisy_image is not None:
-            st.markdown("""
-            <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-            """, unsafe_allow_html=True)
-            st.image(st.session_state.noisy_image, caption=f"🌪️ Noisy Image ({noise_type})", use_container_width=True, clamp=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-        else:
-            st.info("📋 Generate noisy image from the sidebar")
-
-# Digital Filters and Enhancements
-if st.session_state.filtered_images:
-    st.markdown('<div class="subheader">✨ Filters & Enhancements</div>', unsafe_allow_html=True)
-    
-    num_images = len(st.session_state.filtered_images)
-    cols_per_row = 3
-    rows = (num_images + cols_per_row - 1) // cols_per_row
-    
-    for row in range(rows):
-        cols = st.columns(cols_per_row)
-        
-        for col_idx in range(cols_per_row):
-            img_idx = row * cols_per_row + col_idx
-            
-            if img_idx < num_images:
-                filter_name = list(st.session_state.filtered_images.keys())[img_idx]
-                filtered_img = st.session_state.filtered_images[filter_name]
-                
-                with cols[col_idx]:
-                    st.markdown("""
-                    <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-                    """, unsafe_allow_html=True)
-                    st.image(filtered_img, caption=f"✨ {filter_name}", use_container_width=True, clamp=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
-
-# CNN-Based Denoising
-if st.session_state.cnn_denoised is not None:
-    st.markdown('<div class="subheader">🤖 Deep Learning Denoising</div>', unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-        """, unsafe_allow_html=True)
-        st.image(st.session_state.noisy_image, caption="🌪️ Noisy Input", use_container_width=True, clamp=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-        """, unsafe_allow_html=True)
-        st.image(st.session_state.cnn_denoised, caption="🤖 CNN Denoised", use_container_width=True, clamp=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    with col3:
-        if "Gaussian Blur" in st.session_state.filtered_images:
-            st.markdown("""
-            <div style='background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-            """, unsafe_allow_html=True)
-            st.image(st.session_state.filtered_images["Gaussian Blur"], 
-                    caption="🔍 Gaussian Blur", use_container_width=True, clamp=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div style='background: #d1ecf1; padding: 20px; border-radius: 10px; border-left: 4px solid #17a2b8; text-align: center;'>
-            <p style='color: #0c5460; margin: 0;'>📋 Apply Gaussian Blur for comparison</p>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # Display CNN Evaluation Metrics
-    st.markdown("---")
-    if st.session_state.original_image is not None:
-        psnr = compute_psnr(st.session_state.original_image, st.session_state.cnn_denoised)
-        col_metric1, col_metric2, col_metric3 = st.columns(3)
-        
-        with col_metric1:
-            st.markdown(f"""
-            <div style='background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); color: white; padding: 20px; border-radius: 10px; text-align: center; box-shadow: 0 4px 15px rgba(0,153,204,0.3);'>
-            <h4 style='margin: 0; color: white;'>🎯 PSNR</h4>
-            <p style='font-size: 2em; margin: 10px 0 0 0; font-weight: bold;'>{psnr:.2f} dB</p>
-            <small style='color: rgba(255,255,255,0.8);'>Peak Signal-to-Noise Ratio</small>
-            </div>
-            """, unsafe_allow_html=True)
-
-# Save Results
-st.markdown('<div class="subheader">💾 Save Results</div>', unsafe_allow_html=True)
-
-if st.button("💾 SAVE ALL IMAGES", key="save_all", use_container_width=True):
-    output_dir = Path("outputs")
-    output_dir.mkdir(exist_ok=True)
-    
-    saved_files = []
-    
-    # Save original and noisy
-    if st.session_state.original_image is not None:
-        save_image(st.session_state.original_image, "01_original.png")
-        saved_files.append("✅ original.png")
-    
-    if st.session_state.noisy_image is not None:
-        save_image(st.session_state.noisy_image, "02_noisy.png")
-        saved_files.append("✅ noisy.png")
-    
-    # Save filtered images
-    for idx, (name, img) in enumerate(st.session_state.filtered_images.items()):
-        filename = f"03_filtered_{idx:02d}_{name.lower().replace(' ', '_')}.png"
-        save_image(img, filename)
-        saved_files.append(f"✅ {filename}")
-    
-    # Save CNN denoised
-    if st.session_state.cnn_denoised is not None:
-        save_image(st.session_state.cnn_denoised, "04_dncnn_denoised.png")
-        saved_files.append("✅ dncnn_denoised.png")
-    
     st.markdown("""
-    <div style='background: #d4edda; color: #155724; padding: 20px; border-radius: 10px; border-left: 5px solid #28a745; margin: 20px 0;'>
-    <h4 style='margin-top: 0; color: #155724;'>✅ All images saved successfully!</h4>
-    <p style='margin: 0;'><strong>Saved files:</strong></p>
+    <div class="pf-section">
+      <span class="pf-section-pill">Step 01</span>
+      <h2>Original &amp; Noisy Images</h2>
+      <div class="pf-section-rule"></div>
     </div>
     """, unsafe_allow_html=True)
-    for file in saved_files:
-        st.markdown(f"- {file}")
 
-st.markdown("---")
+    c1, c2 = st.columns(2, gap="large")
+    with c1:
+        st.markdown('<div class="pf-card"><div class="pf-card-header"><div class="pf-card-dot" style="background:#1a56db;"></div><span class="pf-card-title">Original / Clean</span></div>', unsafe_allow_html=True)
+        st.image(st.session_state.original_image, use_container_width=True, clamp=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with c2:
+        if st.session_state.noisy_image is not None:
+            st.markdown(f'<div class="pf-card"><div class="pf-card-header"><div class="pf-card-dot" style="background:#e11d48;"></div><span class="pf-card-title">Degraded — {noise_type}</span></div>', unsafe_allow_html=True)
+            st.image(st.session_state.noisy_image, use_container_width=True, clamp=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.markdown("""<div class="pf-alert info"><span style="font-size:1.1rem;flex-shrink:0;">ℹ️</span><div><strong>Next step</strong>Configure noise in the sidebar, then click Generate Noisy Image.</div></div>""", unsafe_allow_html=True)
+
+# Section 02 — Filters & Enhancements
+if st.session_state.filtered_images:
+    st.markdown("""
+    <div class="pf-section">
+      <span class="pf-section-pill">Step 02</span>
+      <h2>Filters &amp; Enhancement Results</h2>
+      <div class="pf-section-rule"></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    dot_colors = ["#1a56db","#0e9f8a","#7c3aed","#d97706","#e11d48","#0ea5e9","#f59e0b"]
+    items = list(st.session_state.filtered_images.items())
+    for row_start in range(0, len(items), 3):
+        cols = st.columns(3, gap="large")
+        for j, (name, img) in enumerate(items[row_start:row_start+3]):
+            dc = dot_colors[j % len(dot_colors)]
+            with cols[j]:
+                st.markdown(f'<div class="pf-card"><div class="pf-card-header"><div class="pf-card-dot" style="background:{dc};"></div><span class="pf-card-title">{name}</span></div>', unsafe_allow_html=True)
+                st.image(img, use_container_width=True, clamp=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+# Section 03 — CNN Denoising
+if st.session_state.cnn_denoised is not None:
+    st.markdown("""
+    <div class="pf-section">
+      <span class="pf-section-pill">Step 03</span>
+      <h2>Deep Learning Denoising</h2>
+      <div class="pf-section-rule"></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c1, c2, c3 = st.columns(3, gap="large")
+    with c1:
+        st.markdown('<div class="pf-card"><div class="pf-card-header"><div class="pf-card-dot" style="background:#e11d48;"></div><span class="pf-card-title">Noisy Input</span></div>', unsafe_allow_html=True)
+        st.image(st.session_state.noisy_image, use_container_width=True, clamp=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="pf-card"><div class="pf-card-header"><div class="pf-card-dot" style="background:#7c3aed;"></div><span class="pf-card-title">CNN Denoised</span></div>', unsafe_allow_html=True)
+        st.image(st.session_state.cnn_denoised, use_container_width=True, clamp=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with c3:
+        if "Gaussian Blur" in st.session_state.filtered_images:
+            st.markdown('<div class="pf-card"><div class="pf-card-header"><div class="pf-card-dot" style="background:#0e9f8a;"></div><span class="pf-card-title">Gaussian Blur (Ref.)</span></div>', unsafe_allow_html=True)
+            st.image(st.session_state.filtered_images["Gaussian Blur"], use_container_width=True, clamp=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="pf-alert info"><span style="font-size:1.1rem;flex-shrink:0;">💡</span><div>Add <strong>Gaussian Blur</strong> for side-by-side comparison.</div></div>', unsafe_allow_html=True)
+
+    if st.session_state.original_image is not None:
+        psnr_cnn   = compute_psnr(st.session_state.original_image, st.session_state.cnn_denoised)
+        psnr_noisy = compute_psnr(st.session_state.original_image, st.session_state.noisy_image)
+        delta      = psnr_cnn - psnr_noisy
+        sign       = "+" if delta >= 0 else ""
+        st.markdown(f"""
+        <div class="pf-metrics">
+          <div class="pf-metric blue">
+            <div class="pf-metric-label">CNN Output PSNR</div>
+            <div class="pf-metric-value">{psnr_cnn:.1f}<span class="pf-metric-unit"> dB</span></div>
+            <div class="pf-metric-sub">Peak signal-to-noise ratio</div>
+          </div>
+          <div class="pf-metric teal">
+            <div class="pf-metric-label">Noisy Input PSNR</div>
+            <div class="pf-metric-value">{psnr_noisy:.1f}<span class="pf-metric-unit"> dB</span></div>
+            <div class="pf-metric-sub">Before denoising</div>
+          </div>
+          <div class="pf-metric violet">
+            <div class="pf-metric-label">PSNR Improvement</div>
+            <div class="pf-metric-value">{sign}{delta:.1f}<span class="pf-metric-unit"> dB</span></div>
+            <div class="pf-metric-sub">Gain from CNN</div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# Section 04 — Export
 st.markdown("""
-<div style='background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; border-left: 5px solid #0052A3;'>
-<h3 style='color: #0052A3; margin-top: 0;'>📚 About This Application</h3>
+<div class="pf-section">
+  <span class="pf-section-pill">Step 04</span>
+  <h2>Export Results</h2>
+  <div class="pf-section-rule"></div>
+</div>
+""", unsafe_allow_html=True)
 
-<div style='background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #4ECDC4;'>
-<h4 style='color: #0052A3; margin-top: 0;'>🎯 PART A: Image Upload & Noise Generation</h4>
-<p style='margin: 0;'>Upload an image and add synthetic noise (Gaussian or Salt & Pepper) with configurable parameters</p>
+if st.button("Save All Images to outputs/", key="save_all"):
+    Path("outputs").mkdir(exist_ok=True)
+    saved = []
+    if st.session_state.original_image is not None:
+        save_image(st.session_state.original_image, "outputs/01_original.png"); saved.append("01_original.png")
+    if st.session_state.noisy_image is not None:
+        save_image(st.session_state.noisy_image, "outputs/02_noisy.png"); saved.append("02_noisy.png")
+    for i,(n,img) in enumerate(st.session_state.filtered_images.items()):
+        fn = f"03_{i:02d}_{n.lower().replace(' ','_')}.png"
+        save_image(img, f"outputs/{fn}"); saved.append(fn)
+    if st.session_state.cnn_denoised is not None:
+        save_image(st.session_state.cnn_denoised, "outputs/04_cnn_denoised.png"); saved.append("04_cnn_denoised.png")
+
+    rows = "".join([f'<div class="pf-save-item"><span class="pf-save-check">✓</span>{f}</div>' for f in saved])
+    st.markdown(f"""
+    <div class="pf-alert success" style="flex-direction:column;align-items:stretch;gap:0;">
+      <div style="display:flex;gap:10px;align-items:center;padding-bottom:12px;margin-bottom:4px;border-bottom:1px solid #a7f3d0;">
+        <span style="font-size:1.1rem;">✓</span>
+        <strong>{len(saved)} file(s) saved to outputs/</strong>
+      </div>
+      {rows}
+    </div>""", unsafe_allow_html=True)
+
+# About
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("""
+<div class="pf-section">
+  <span class="pf-section-pill">Project</span>
+  <h2>About This Application</h2>
+  <div class="pf-section-rule"></div>
 </div>
 
-<div style='background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #FF6B6B;'>
-<h4 style='color: #0052A3; margin-top: 0;'>🎛️ PART B: Digital Filters & Enhancements</h4>
-<p style='margin: 0;'>Apply 7+ digital filters and 5+ enhancement techniques (Histogram Equalization, CLAHE, Contrast Stretching, Gamma Correction)</p>
+<div class="pf-about">
+  <div class="pf-about-card">
+    <div class="pf-about-icon blue">🎯</div>
+    <h3>Part A — Noise Simulation</h3>
+    <p>Upload images and apply synthetic Gaussian or Salt & Pepper noise with fully configurable intensity to replicate real-world degradation for benchmarking.</p>
+  </div>
+  <div class="pf-about-card">
+    <div class="pf-about-icon teal">🎛️</div>
+    <h3>Part B — Digital Filters</h3>
+    <p>Apply and compare seven classical filters alongside four histogram-based enhancement techniques — CLAHE, contrast stretching, gamma correction, and histogram equalisation.</p>
+  </div>
+  <div class="pf-about-card">
+    <div class="pf-about-icon violet">🤖</div>
+    <h3>Part C — CNN Denoising</h3>
+    <p>Pretrained convolutional models automatically selected based on noise type and intensity. PSNR metrics quantify improvement over classical methods.</p>
+  </div>
 </div>
 
-<div style='background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #9B59B6;'>
-<h4 style='color: #0052A3; margin-top: 0;'>🤖 PART C: Deep Learning Denoising</h4>
-<p style='margin: 0;'>Use pretrained DnCNN models for advanced AI-powered denoising with automatic model selection</p>
+<div style="background:#fff;border:1px solid #e4e9f0;border-radius:16px;padding:28px 32px;box-shadow:0 1px 4px rgba(0,0,0,.04);">
+  <p style="font-size:0.65rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:#94a3b8;margin:0 0 14px;">Technology Stack</p>
+  <div class="pf-tags">
+    <span class="pf-tag">Python</span><span class="pf-tag">OpenCV</span>
+    <span class="pf-tag">NumPy</span><span class="pf-tag">TensorFlow</span>
+    <span class="pf-tag">Keras</span><span class="pf-tag">PyTorch</span>
+    <span class="pf-tag">Streamlit</span><span class="pf-tag">Pillow</span>
+  </div>
+  <p style="font-size:0.75rem;color:#cbd5e1;margin:20px 0 0;text-align:right;">Image Enhancement and Noise Reduction Project</p>
 </div>
-
-<div style='margin-top: 20px; padding: 15px; background: #f0f2f6; border-radius: 8px;'>
-<p style='margin: 0; color: #555;'><strong>🛠️ Technologies:</strong> Python • OpenCV • TensorFlow/Keras • Streamlit • Deep Learning</p>
-<p style='margin: 10px 0 0 0; color: #555;'><strong>📍 Dataset:</strong> Custom Dataset (300 medical images with data augmentation)</p>
-</div>
-</div>
+<br><br>
 """, unsafe_allow_html=True)
