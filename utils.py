@@ -6,6 +6,9 @@ import cv2
 import numpy as np
 from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent
+OUTPUT_DIR = BASE_DIR / "outputs"
+
 
 def load_image(image_file):
     """
@@ -79,12 +82,11 @@ def save_image(image, filename):
         image: Image to save
         filename: Name of the file
     """
-    output_dir = Path("outputs")
-    output_dir.mkdir(exist_ok=True)
-    
-    filepath = output_dir / filename
+    OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
+
+    filepath = OUTPUT_DIR / filename if not str(filename).startswith(str(BASE_DIR)) else Path(filename)
     cv2.imwrite(str(filepath), image)
-    
+
     return str(filepath)
 
 

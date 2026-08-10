@@ -18,10 +18,25 @@ from enhancement import (histogram_equalization, clahe_enhancement,
                          adaptive_histogram_equalization, contrast_stretching, gamma_correction)
 from cnn_denoise import load_dncnn_model, denoise_image_dncnn, load_keras_cnn_model, denoise_image_keras_cnn
 
+BASE_DIR = Path(__file__).resolve().parent
+OUTPUT_DIR = BASE_DIR / "outputs"
+MODEL_DIR = BASE_DIR / "models"
+
 
 def compute_psnr(original, denoised):
-    original = original.astype(np.float32)
-    denoised = denoised.astype(np.float32)
+    original = np.asarray(original, dtype=np.float32)
+    denoised = np.asarray(denoised, dtype=np.float32)
+
+    if original.shape != denoised.shape:
+        if original.ndim != denoised.ndim:
+            if denoised.ndim == 2 and original.ndim == 3:
+                denoised = cv2.cvtColor(np.uint8(denoised), cv2.COLOR_GRAY2BGR)
+                denoised = denoised[:, :, 0]
+            elif original.ndim == 2 and denoised.ndim == 3:
+                original = original[:, :, 0]
+        if original.shape[:2] != denoised.shape[:2]:
+            denoised = cv2.resize(denoised, (original.shape[1], original.shape[0]), interpolation=cv2.INTER_LINEAR)
+
     mse = np.mean((original - denoised) ** 2)
     if mse == 0:
         return float('inf')
@@ -195,36 +210,73 @@ sb.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-sb.markdown('<span class="sb-label">01 · Upload Image</span>', unsafe_allow_html=True)
-uploaded_file = sb.file_uploader("Choose JPG or PNG", type=["jpg","jpeg","png"], label_visibility="collapsed")
-if uploaded_file:
-    try:
-        st.session_state.original_image = load_image(uploaded_file)
-        sb.success("Image loaded successfully.")
-    except Exception as e:
-        sb.error(f"Error: {e}")
+workflow_mode = sb.radio(
+    "Workflow",
+    ["Synthetic Noise Pipeline", "Upload Noisy Image Directly"],
+    index=0,
+    horizontal=False,
+)
 
-sb.markdown('<span class="sb-label">02 · Add Noise</span>', unsafe_allow_html=True)
-noise_type = sb.selectbox("Type", ["Gaussian Noise", "Salt & Pepper Noise"], label_visibility="collapsed")
-if noise_type == "Gaussian Noise":
-    noise_std = sb.slider("Std Dev", 5, 50, 25)
-    noise_params = {"type": "gaussian", "std": noise_std}
-else:
-    salt_prob   = sb.slider("Salt %",   0.01, 0.10, 0.05, 0.01)
-    pepper_prob = sb.slider("Pepper %", 0.01, 0.10, 0.05, 0.01)
-    noise_params = {"type": "salt_pepper", "salt_prob": salt_prob, "pepper_prob": pepper_prob}
+if workflow_mode == "Synthetic Noise Pipeline":
+    sb.markdown('<span class="sb-label">01 · Upload Image</span>', unsafe_allow_html=True)
+    uploaded_file = sb.file_uploader("Choose JPG or PNG", type=["jpg","jpeg","png"], label_visibility="collapsed")
+    if uploaded_file:
+        try:
+            st.session_state.original_image = load_image(uploaded_file)
+            sb.success("Image loaded successfully.")
+        except Exception as e:
+            sb.error(f"Error: {e}")
 
-if sb.button("Generate Noisy Image", key="gen_noise"):
-    if st.session_state.original_image is not None:
-        st.session_state.noise_params = noise_params
-        if noise_params["type"] == "gaussian":
-            st.session_state.noisy_image = add_gaussian_noise(st.session_state.original_image, std=noise_params["std"])
-        else:
-            st.session_state.noisy_image = add_salt_pepper_noise(st.session_state.original_image,
-                salt_prob=noise_params["salt_prob"], pepper_prob=noise_params["pepper_prob"])
-        sb.success("Noisy image generated.")
+    sb.markdown('<span class="sb-label">02 · Add Noise</span>', unsafe_allow_html=True)
+    noise_type = sb.selectbox("Type", ["Gaussian Noise", "Salt & Pepper Noise"], label_visibility="collapsed")
+    if noise_type == "Gaussian Noise":
+        noise_std = sb.slider("Std Dev", 5, 50, 25)
+        noise_params = {"type": "gaussian", "std": noise_std}
     else:
-        sb.warning("Upload an image first.")
+        salt_prob   = sb.slider("Salt %",   0.01, 0.10, 0.05, 0.01)
+        pepper_prob = sb.slider("Pepper %", 0.01, 0.10, 0.05, 0.01)
+        noise_params = {"type": "salt_pepper", "salt_prob": salt_prob, "pepper_prob": pepper_prob}
+
+    if sb.button("Generate Noisy Image", key="gen_noise"):
+        if st.session_state.original_image is not None:
+            st.session_state.noise_params = noise_params
+            if noise_params["type"] == "gaussian":
+                st.session_state.noisy_image = add_gaussian_noise(st.session_state.original_image, std=noise_params["std"])
+            else:
+                st.session_state.noisy_image = add_salt_pepper_noise(st.session_state.original_image,
+                    salt_prob=noise_params["salt_prob"], pepper_prob=noise_params["pepper_prob"])
+            sb.success("Noisy image generated.")
+        else:
+            sb.warning("Upload an image first.")
+    noise_type_label = noise_type
+else:
+    sb.markdown('<span class="sb-label">01 · Upload Noisy Image</span>', unsafe_allow_html=True)
+    direct_noisy_file = sb.file_uploader("Choose JPG or PNG", type=["jpg","jpeg","png"], key="direct_noisy_file", label_visibility="collapsed")
+    if direct_noisy_file:
+        try:
+            st.session_state.noisy_image = load_image(direct_noisy_file)
+            st.session_state.original_image = None
+            st.session_state.noise_params = {"type": "direct", "note": "Uploaded noisy image"}
+            sb.success("Noisy image loaded successfully.")
+        except Exception as e:
+            sb.error(f"Error: {e}")
+
+    sb.markdown('<span class="sb-label">02 · Optional Reference Image</span>', unsafe_allow_html=True)
+    reference_file = sb.file_uploader("Optional original image for PSNR", type=["jpg","jpeg","png"], key="direct_reference_file", label_visibility="collapsed")
+    if reference_file:
+        try:
+            st.session_state.original_image = load_image(reference_file)
+            sb.success("Reference image loaded for PSNR comparison.")
+        except Exception as e:
+            sb.error(f"Error: {e}")
+
+    if sb.button("Use Direct Noisy Image", key="use_direct_noisy"):
+        if st.session_state.noisy_image is not None:
+            st.session_state.noise_params = {"type": "direct", "note": "Uploaded noisy image"}
+            sb.success("Direct noisy image is ready for processing.")
+        else:
+            sb.warning("Upload a noisy image first.")
+    noise_type_label = "Uploaded noisy image"
 
 sb.markdown('<span class="sb-label">03 · Digital Filters</span>', unsafe_allow_html=True)
 filter_options = {
@@ -284,10 +336,12 @@ if sb.button("⚡  Run Full Pipeline", key="apply_all", use_container_width=True
                 ni = st.session_state.noise_params
                 if ni and ni["type"] == "gaussian":
                     s = ni["std"]
-                    mp = './models/cnn_denoiser_sigma15.h5' if s<=20 else ('./models/cnn_denoiser_sigma25.h5' if s<=30 else './models/cnn_denoiser_sigma35.h5')
+                    mp = MODEL_DIR / ('cnn_denoiser_sigma15.h5' if s <= 20 else ('cnn_denoiser_sigma25.h5' if s <= 30 else 'cnn_denoiser_sigma35.h5'))
+                elif ni and ni["type"] == "direct":
+                    mp = MODEL_DIR / 'cnn_denoiser_sigma25.h5'
                 else:
-                    mp = './models/cnn_denoiser_saltpepper.h5'
-                st.session_state.keras_cnn_model = load_keras_cnn_model(mp)
+                    mp = MODEL_DIR / 'cnn_denoiser_saltpepper.h5'
+                st.session_state.keras_cnn_model = load_keras_cnn_model(str(mp))
                 st.session_state.cnn_denoised = denoise_image_keras_cnn(
                     st.session_state.noisy_image, model=st.session_state.keras_cnn_model)
             except Exception as e:
@@ -340,11 +394,11 @@ if st.session_state.original_image is not None:
         st.markdown('</div>', unsafe_allow_html=True)
     with c2:
         if st.session_state.noisy_image is not None:
-            st.markdown(f'<div class="pf-card"><div class="pf-card-header"><div class="pf-card-dot" style="background:#e11d48;"></div><span class="pf-card-title">Degraded — {noise_type}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="pf-card"><div class="pf-card-header"><div class="pf-card-dot" style="background:#e11d48;"></div><span class="pf-card-title">Degraded — {noise_type_label}</span></div>', unsafe_allow_html=True)
             st.image(st.session_state.noisy_image, use_container_width=True, clamp=True)
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.markdown("""<div class="pf-alert info"><span style="font-size:1.1rem;flex-shrink:0;">ℹ️</span><div><strong>Next step</strong>Configure noise in the sidebar, then click Generate Noisy Image.</div></div>""", unsafe_allow_html=True)
+            st.markdown("""<div class="pf-alert info"><span style="font-size:1.1rem;flex-shrink:0;">ℹ️</span><div><strong>Next step</strong>Configure noise in the sidebar, then click Generate Noisy Image or upload a noisy image directly.</div></div>""", unsafe_allow_html=True)
 
 # Section 02 — Filters & Enhancements
 if st.session_state.filtered_images:
@@ -429,17 +483,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if st.button("Save All Images to outputs/", key="save_all"):
-    Path("outputs").mkdir(exist_ok=True)
+    OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
     saved = []
     if st.session_state.original_image is not None:
-        save_image(st.session_state.original_image, "outputs/01_original.png"); saved.append("01_original.png")
+        save_image(st.session_state.original_image, "01_original.png"); saved.append("01_original.png")
     if st.session_state.noisy_image is not None:
-        save_image(st.session_state.noisy_image, "outputs/02_noisy.png"); saved.append("02_noisy.png")
+        save_image(st.session_state.noisy_image, "02_noisy.png"); saved.append("02_noisy.png")
     for i,(n,img) in enumerate(st.session_state.filtered_images.items()):
         fn = f"03_{i:02d}_{n.lower().replace(' ','_')}.png"
-        save_image(img, f"outputs/{fn}"); saved.append(fn)
+        save_image(img, fn); saved.append(fn)
     if st.session_state.cnn_denoised is not None:
-        save_image(st.session_state.cnn_denoised, "outputs/04_cnn_denoised.png"); saved.append("04_cnn_denoised.png")
+        save_image(st.session_state.cnn_denoised, "04_cnn_denoised.png"); saved.append("04_cnn_denoised.png")
 
     rows = "".join([f'<div class="pf-save-item"><span class="pf-save-check">✓</span>{f}</div>' for f in saved])
     st.markdown(f"""
