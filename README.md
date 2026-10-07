@@ -34,6 +34,8 @@ A comprehensive Streamlit application for image enhancement and noise reduction 
 - **Keras CNN denoiser** (small 4-layer convolutional network)
 - Four pretrained models (`.h5`), auto-selected by noise type and intensity:
   Gaussian σ15 / σ25 / σ35 and Salt & Pepper
+- Direct uploads: noise type/level is auto-detected from the image, so the user
+  never has to specify it
 - TensorFlow/Keras inference
 
 ## 📁 Project Structure
