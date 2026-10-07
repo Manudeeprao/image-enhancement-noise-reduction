@@ -18,11 +18,8 @@ The user interface is built with Streamlit. A user can upload an image, add Gaus
 | `filters.py` | Average, Gaussian, median, bilateral, sharpening, and morphological filters |
 | `enhancement.py` | Histogram equalization, CLAHE, adaptive equalization, contrast stretching, and gamma correction |
 | `utils.py` | Image loading, normalization, noise generation, and output helpers |
-| `cnn_denoise.py` | PyTorch DnCNN support and Keras CNN model loading/inference |
-| `train_cnn_keras.py` | Training script for a Gaussian-noise CNN variant |
-| `train_cnn_sigma15.py` | Training script for Gaussian noise with sigma 15 |
-| `train_cnn_sigma35.py` | Training script for Gaussian noise with sigma 35 |
-| `train_cnn_salt_pepper.py` | Training script for salt-and-pepper noise |
+| `cnn_denoise.py` | Trained Keras CNN model loading and inference |
+| `train_cnn.py` | Parameterized training script: trains the 4-layer CNN denoiser for any noise regime (Gaussian σ15/25/35, salt & pepper) |
 | `Dataset/NEWDATASET/` | PNG images used to generate training patches |
 | `models/` | Saved trained Keras models in HDF5 format |
 | `outputs/` | Destination for processed images produced by the application |
@@ -62,20 +59,18 @@ flowchart TD
     CNN_GATE -->|Yes| CNN_SELECT[Select Trained Model]
 
     CNN_SELECT --> KERAS[Keras CNN Inference<br/>cnn_denoise.py]
-    CNN_SELECT --> DNCNN[PyTorch DnCNN Inference<br/>cnn_denoise.py]
 
     KERAS --> RESULTS
-    DNCNN --> RESULTS
     ENHANCE --> RESULTS
 
-    RESULTS --> METRICS[PSNR and Visual Evaluation]
+    RESULTS --> METRICS[PSNR and SSIM Evaluation]
     RESULTS --> SAVE[Save Processed Images]
     SAVE --> OUTPUTS[outputs/]
 
     subgraph Training[Offline Model Training]
         DATASET[PNG Training Images<br/>Dataset/NEWDATASET/] --> PATCHES[40 x 40 Grayscale Patches]
         PATCHES --> AUGMENT[Add Synthetic Noise]
-        AUGMENT --> TRAIN[TensorFlow/Keras Training<br/>train_cnn_*.py]
+        AUGMENT --> TRAIN[TensorFlow/Keras Training<br/>train_cnn.py]
         TRAIN --> MODELS[Saved .h5 Models<br/>models/]
     end
 
@@ -87,7 +82,7 @@ flowchart TD
 1. **Presentation layer:** `app.py` provides the Streamlit controls, image previews, processing selections, metrics, and save actions.
 2. **Input and utility layer:** `utils.py` loads images, converts them into the expected format, generates noise, and saves outputs.
 3. **Classical image-processing layer:** `filters.py` and `enhancement.py` apply smoothing, edge-preserving filters, morphology, contrast enhancement, and brightness adjustment.
-4. **Deep-learning inference layer:** `cnn_denoise.py` loads either a saved Keras model or the PyTorch DnCNN model and converts images between NumPy arrays and model tensors.
+4. **Deep-learning inference layer:** `cnn_denoise.py` loads the saved Keras `.h5` model and converts images between NumPy arrays and model tensors.
 5. **Offline training layer:** the training scripts read clean PNG images, create noisy patch pairs, train CNN models, and save them under `models/`.
 6. **Storage layer:** `Dataset/NEWDATASET/` contains training inputs, `models/` contains trained weights, and `outputs/` contains generated results.
 
@@ -122,9 +117,16 @@ These methods provide repeatable experiment types without requiring a separately
 
 Filtering primarily targets noise, while enhancement targets visibility, contrast, and detail. Applying too many operations can remove useful information or exaggerate artifacts, so the application allows them to be selected independently.
 
-## 6. CNN training script: `train_cnn_sigma35.py`
+## 6. CNN training script: `train_cnn.py`
 
-This script trains a small Keras CNN to reconstruct clean image patches from patches corrupted with Gaussian noise whose standard deviation is **35 intensity levels**.
+This single parameterized script trains a small Keras CNN to reconstruct clean image patches from patches corrupted with synthetic noise. The noise regime is chosen on the command line, replacing the four legacy scripts:
+
+```bash
+python train_cnn.py --noise-type gaussian --noise-param 35
+python train_cnn.py --noise-type salt_pepper --noise-param 0.1
+```
+
+For a Gaussian run with sigma **35**, the pipeline works as follows.
 
 ### 5.1 Dataset loading and patch extraction
 
@@ -172,12 +174,12 @@ The model is compiled with:
 
 ### 5.3 Training configuration
 
-The script uses:
+Defaults (overridable via CLI flags `--patch-size`, `--noise-param`, `--batch-size`, `--epochs`):
 
-| Setting | Value |
+| Setting | Default |
 |---|---:|
 | Patch size | `40 x 40` |
-| Noise sigma | `35` |
+| Noise type / param | `gaussian` / `25` |
 | Batch size | `16` |
 | Epochs | `8` |
 | Validation split | `10%` |
@@ -187,7 +189,7 @@ Training shuffles the patches before each epoch. The returned Keras history cont
 
 ### 5.4 Model output
 
-After training, the script creates `models/` if necessary and saves:
+After training, the script creates `models/` if necessary and saves, for example:
 
 ```text
 models/cnn_denoiser_sigma35.h5
@@ -197,10 +199,7 @@ The final training loss and validation loss are printed so the run can be review
 
 ## 7. CNN inference
 
-`cnn_denoise.py` supports two different neural-network paths:
-
-1. A **PyTorch 17-layer DnCNN** implementation using residual learning.
-2. A **Keras CNN loader** for the `.h5` models generated by the training scripts.
+`cnn_denoise.py` loads the trained Keras `.h5` denoising models for inference.
 
 For the Keras path, the input image is:
 
@@ -225,10 +224,10 @@ streamlit run app.py
 
 The application is then available at `http://localhost:8501`.
 
-To retrain the sigma-35 model:
+To retrain, for example, the sigma-35 model:
 
 ```bash
-python train_cnn_sigma35.py
+python train_cnn.py --noise-type gaussian --noise-param 35
 ```
 
 The training command expects PNG files under:
@@ -241,7 +240,7 @@ The model is saved under `models/` after a successful run.
 
 ## 9. Evaluation considerations
 
-The application can compare outputs using visual inspection and PSNR. When a clean reference image is available, additional useful metrics include:
+The application compares outputs using visual inspection, PSNR, and SSIM. When a clean reference image is available, additional useful metrics include:
 
 - **MSE:** average squared pixel error.
 - **MAE:** average absolute pixel error.
@@ -252,13 +251,12 @@ Metrics should be calculated against the same clean reference and at the same im
 
 ## 10. Important limitations
 
-- The sigma-35 training script uses non-overlapping patches, so it does not learn from overlapping local views.
+- The training script uses non-overlapping patches, so it does not learn from overlapping local views.
 - Border regions that do not fit a complete `40 x 40` patch are skipped during training.
 - Noise is generated randomly each time the script runs, so exact training results can vary.
-- The sigma-specific Keras models and the PyTorch DnCNN are different architectures and should not be treated as interchangeable.
 - A model trained for Gaussian noise is not automatically suitable for salt-and-pepper noise.
 - Traditional enhancement operations can improve visibility while also amplifying noise if used before denoising.
 
 ## 11. Summary
 
-This project combines classical digital image processing with deep learning in a single interactive application. The traditional methods provide transparent, fast baselines, while the CNN models learn a direct mapping from noisy grayscale patches to clean patches. The `train_cnn_sigma35.py` script specifically produces a four-convolution Keras denoiser for Gaussian noise with sigma 35, and the resulting model can be loaded by the application's Keras inference path for full-image denoising.
+This project combines classical digital image processing with deep learning in a single interactive application. The traditional methods provide transparent, fast baselines, while the CNN models learn a direct mapping from noisy grayscale patches to clean patches. The `train_cnn.py` script produces the four-convolution Keras denoisers for each noise regime, and the resulting models are loaded by the application's Keras inference path for full-image denoising.
