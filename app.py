@@ -221,7 +221,11 @@ section[data-testid="stSidebar"] .stButton > button{ width: 100% !important; }
 .sb-label{ font-size: 0.62rem !important; font-weight: 700 !important; letter-spacing: 0.12em !important; text-transform: uppercase !important; color: var(--faint) !important; padding: 16px 20px 8px !important; display: block; border-top: 1px solid var(--border); margin-top: 4px; }
 
 /* ── Streamlit native elements ── */
-[data-testid="stMetric"]{ background: var(--surface); border: 1px solid var(--border); border-radius: var(--r8); padding: 12px 16px; }
+[data-testid="stMetric"]{ background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: var(--r8) !important; padding: 12px 16px !important; }
+[data-testid="stMetric"] [data-testid="stMetricLabel"], [data-testid="stMetricLabel"]{ color: var(--faint) !important; }
+[data-testid="stMetric"] [data-testid="stMetricLabel"] *{ color: var(--faint) !important; }
+[data-testid="stMetric"] [data-testid="stMetricValue"], [data-testid="stMetricValue"]{ color: var(--text) !important; }
+[data-testid="stMetric"] [data-testid="stMetricValue"] *{ color: var(--text) !important; }
 [data-testid="stDataFrame"]{ border: 1px solid var(--border); border-radius: var(--r8); overflow: hidden; background: var(--surface); }
 [data-testid="stCaptionContainer"]{ color: var(--faint) !important; }
 [data-testid="stAlert"]{ border-radius: var(--r8) !important; }
