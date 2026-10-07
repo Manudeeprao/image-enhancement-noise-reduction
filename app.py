@@ -6,9 +6,9 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
-import torch
 from pathlib import Path
 import pandas as pd
+from skimage.metrics import structural_similarity as _ssim_metric
 
 from utils import load_image, add_gaussian_noise, add_salt_pepper_noise, save_image, normalize_image, denormalize_image
 from filters import (average_filter, gaussian_blur, median_filter_cv,
@@ -16,7 +16,7 @@ from filters import (average_filter, gaussian_blur, median_filter_cv,
                      morphological_opening, morphological_closing)
 from enhancement import (histogram_equalization, clahe_enhancement,
                          adaptive_histogram_equalization, contrast_stretching, gamma_correction)
-from cnn_denoise import load_dncnn_model, denoise_image_dncnn, load_keras_cnn_model, denoise_image_keras_cnn
+from cnn_denoise import load_keras_cnn_model, denoise_image_keras_cnn
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "outputs"
@@ -41,6 +41,32 @@ def compute_psnr(original, denoised):
     if mse == 0:
         return float('inf')
     return 10 * np.log10(255.0 ** 2 / mse)
+
+
+def compute_ssim(original, denoised):
+    """Structural Similarity Index (SSIM) between two grayscale images.
+
+    Returns a float in [0, 1]; higher means more structurally similar.
+    """
+    original = np.asarray(original, dtype=np.uint8)
+    denoised = np.asarray(denoised, dtype=np.uint8)
+
+    # Align shapes the same way compute_psnr does.
+    if original.shape != denoised.shape:
+        if original.ndim != denoised.ndim:
+            if original.ndim == 3:
+                original = original[:, :, 0]
+            else:
+                denoised = denoised[:, :, 0]
+        if original.shape[:2] != denoised.shape[:2]:
+            denoised = cv2.resize(denoised, (original.shape[1], original.shape[0]),
+                                  interpolation=cv2.INTER_LINEAR)
+
+    try:
+        return float(_ssim_metric(original, denoised, data_range=255))
+    except Exception:
+        # e.g. images too small for the default SSIM window
+        return float('nan')
 
 
 # ─────────────────────────────────────────────
@@ -191,7 +217,7 @@ section[data-testid="stSidebar"] .stButton > button:hover { background:#1648c2 !
 for k, v in [
     ('original_image', None), ('noisy_image', None),
     ('filtered_images', {}),  ('cnn_denoised', None),
-    ('dncnn_model', None),    ('keras_cnn_model', None),
+    ('keras_cnn_model', None),
     ('noise_params', None),
 ]:
     if k not in st.session_state:
@@ -295,6 +321,7 @@ sb.markdown('<span class="sb-label">04 · Enhancement</span>', unsafe_allow_html
 enhancement_options = {
     "Histogram Equalization": "hist_eq",
     "CLAHE":                  "clahe",
+    "Adaptive Hist. Equal.":  "ahe",
     "Contrast Stretching":    "contrast",
     "Gamma Correction":       "gamma",
 }
@@ -326,6 +353,7 @@ if sb.button("⚡  Run Full Pipeline", key="apply_all", use_container_width=True
             if ename in selected_enhancements:
                 try:
                     em = {"hist_eq": histogram_equalization, "clahe": clahe_enhancement,
+                          "ahe": adaptive_histogram_equalization,
                           "contrast": contrast_stretching, "gamma": lambda i: gamma_correction(i, gamma=0.8)}
                     st.session_state.filtered_images[ename] = em[ekey](base)
                 except Exception as e:
@@ -371,7 +399,7 @@ st.markdown("""
   </div>
   <div class="pf-hero-right">
     <div class="pf-stat"><div class="pf-stat-num">7</div><div class="pf-stat-label">Filters</div></div>
-    <div class="pf-stat"><div class="pf-stat-num">4</div><div class="pf-stat-label">Enhance</div></div>
+    <div class="pf-stat"><div class="pf-stat-num">5</div><div class="pf-stat-label">Enhance</div></div>
     <div class="pf-stat"><div class="pf-stat-num">4</div><div class="pf-stat-label">CNN Models</div></div>
   </div>
 </div>
@@ -402,7 +430,10 @@ if st.session_state.original_image is not None:
 
     if st.session_state.noisy_image is not None:
         noisy_psnr = compute_psnr(st.session_state.original_image, st.session_state.noisy_image)
-        st.metric("Noisy Input PSNR", f"{noisy_psnr:.2f} dB")
+        noisy_ssim = compute_ssim(st.session_state.original_image, st.session_state.noisy_image)
+        m1, m2 = st.columns(2)
+        m1.metric("Noisy Input PSNR", f"{noisy_psnr:.2f} dB")
+        m2.metric("Noisy Input SSIM", f"{noisy_ssim:.3f}")
 elif st.session_state.noisy_image is not None:
     st.info("True PSNR requires a clean reference image. Upload the matching clean/original image in the sidebar, or switch to Synthetic Noise Pipeline.")
 
@@ -434,38 +465,45 @@ if st.session_state.filtered_images:
     )
     if reference_image is not None:
         has_clean_reference = st.session_state.original_image is not None
-        psnr_rows = []
+        metric_rows = []
         if has_clean_reference:
-            psnr_rows.append({
+            metric_rows.append({
                 "Output": "Noisy Input",
                 "PSNR (dB)": compute_psnr(reference_image, st.session_state.noisy_image),
+                "SSIM": compute_ssim(reference_image, st.session_state.noisy_image),
             })
-        psnr_rows.extend(
-            {"Output": name, "PSNR (dB)": compute_psnr(reference_image, img)}
+        metric_rows.extend(
+            {"Output": name,
+             "PSNR (dB)": compute_psnr(reference_image, img),
+             "SSIM": compute_ssim(reference_image, img)}
             for name, img in items
         )
         if st.session_state.cnn_denoised is not None:
-            psnr_rows.append({
+            metric_rows.append({
                 "Output": "CNN Denoised",
                 "PSNR (dB)": compute_psnr(reference_image, st.session_state.cnn_denoised),
+                "SSIM": compute_ssim(reference_image, st.session_state.cnn_denoised),
             })
-        psnr_table = pd.DataFrame(psnr_rows).sort_values("PSNR (dB)", ascending=False)
+        metric_table = pd.DataFrame(metric_rows).sort_values("PSNR (dB)", ascending=False)
         st.markdown("""
         <div class="pf-section" style="margin-top:32px;">
-          <span class="pf-section-pill">PSNR</span>
+          <span class="pf-section-pill">PSNR · SSIM</span>
           <h2>Quality Comparison</h2>
           <div class="pf-section-rule"></div>
         </div>
         """, unsafe_allow_html=True)
         if has_clean_reference:
-            st.caption("Higher PSNR indicates a result closer to the clean reference image.")
+            st.caption("Higher PSNR and SSIM indicate a result closer to the clean reference image.")
         else:
-            st.info("No clean reference image was uploaded. These are diagnostic PSNR values against the noisy input, not ground-truth quality scores.")
+            st.info("No clean reference image was uploaded. These are diagnostic PSNR/SSIM values against the noisy input, not ground-truth quality scores.")
         st.dataframe(
-            psnr_table,
+            metric_table,
             hide_index=True,
             use_container_width=True,
-            column_config={"PSNR (dB)": st.column_config.NumberColumn(format="%.2f dB")},
+            column_config={
+                "PSNR (dB)": st.column_config.NumberColumn(format="%.2f dB"),
+                "SSIM": st.column_config.NumberColumn(format="%.3f"),
+            },
         )
 
 # Section 03 — CNN Denoising
@@ -515,6 +553,30 @@ if st.session_state.cnn_denoised is not None:
           <div class="pf-metric violet">
             <div class="pf-metric-label">PSNR Improvement</div>
             <div class="pf-metric-value">{sign}{delta:.1f}<span class="pf-metric-unit"> dB</span></div>
+            <div class="pf-metric-sub">Gain from CNN</div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        ssim_cnn   = compute_ssim(st.session_state.original_image, st.session_state.cnn_denoised)
+        ssim_noisy = compute_ssim(st.session_state.original_image, st.session_state.noisy_image)
+        ssim_delta = ssim_cnn - ssim_noisy
+        ssim_sign  = "+" if ssim_delta >= 0 else ""
+        st.markdown(f"""
+        <div class="pf-metrics">
+          <div class="pf-metric blue">
+            <div class="pf-metric-label">CNN Output SSIM</div>
+            <div class="pf-metric-value">{ssim_cnn:.3f}</div>
+            <div class="pf-metric-sub">Structural similarity index</div>
+          </div>
+          <div class="pf-metric teal">
+            <div class="pf-metric-label">Noisy Input SSIM</div>
+            <div class="pf-metric-value">{ssim_noisy:.3f}</div>
+            <div class="pf-metric-sub">Before denoising</div>
+          </div>
+          <div class="pf-metric violet">
+            <div class="pf-metric-label">SSIM Improvement</div>
+            <div class="pf-metric-value">{ssim_sign}{ssim_delta:.3f}</div>
             <div class="pf-metric-sub">Gain from CNN</div>
           </div>
         </div>
@@ -570,12 +632,12 @@ st.markdown("""
   <div class="pf-about-card">
     <div class="pf-about-icon teal">🎛️</div>
     <h3>Part B — Digital Filters</h3>
-    <p>Apply and compare seven classical filters alongside four histogram-based enhancement techniques — CLAHE, contrast stretching, gamma correction, and histogram equalisation.</p>
+    <p>Apply and compare seven classical filters alongside five histogram-based enhancement techniques — histogram equalisation, CLAHE, adaptive histogram equalisation, contrast stretching, and gamma correction.</p>
   </div>
   <div class="pf-about-card">
     <div class="pf-about-icon violet">🤖</div>
     <h3>Part C — CNN Denoising</h3>
-    <p>Pretrained convolutional models automatically selected based on noise type and intensity. PSNR metrics quantify improvement over classical methods.</p>
+    <p>Trained convolutional models automatically selected based on noise type and intensity. PSNR and SSIM metrics quantify improvement over classical methods.</p>
   </div>
 </div>
 
@@ -584,7 +646,7 @@ st.markdown("""
   <div class="pf-tags">
     <span class="pf-tag">Python</span><span class="pf-tag">OpenCV</span>
     <span class="pf-tag">NumPy</span><span class="pf-tag">TensorFlow</span>
-    <span class="pf-tag">Keras</span><span class="pf-tag">PyTorch</span>
+    <span class="pf-tag">Keras</span>
     <span class="pf-tag">Streamlit</span><span class="pf-tag">Pillow</span>
   </div>
   <p style="font-size:0.75rem;color:#cbd5e1;margin:20px 0 0;text-align:right;">Image Enhancement and Noise Reduction Project</p>
