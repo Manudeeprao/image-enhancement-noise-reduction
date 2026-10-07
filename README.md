@@ -2,7 +2,7 @@
 
 ## 📋 Project Overview
 
-A comprehensive Streamlit application for image enhancement and noise reduction using digital filters, enhancement techniques, and deep learning (DnCNN). This capstone project demonstrates various signal processing and machine learning techniques for image quality improvement.
+A comprehensive Streamlit application for image enhancement and noise reduction using digital filters, enhancement techniques, and a trained Keras CNN denoiser. This capstone project demonstrates various signal processing and machine learning techniques for image quality improvement.
 
 ## 🎯 Features
 
@@ -31,10 +31,10 @@ A comprehensive Streamlit application for image enhancement and noise reduction 
 - Gamma Correction
 
 ### PART C - Deep Learning Denoising
-- **DnCNN (Denoising Convolutional Neural Network)**
-- Pretrained model structure
-- PyTorch inference
-- GPU acceleration support
+- **Keras CNN denoiser** (small 4-layer convolutional network)
+- Four pretrained models (`.h5`), auto-selected by noise type and intensity:
+  Gaussian σ15 / σ25 / σ35 and Salt & Pepper
+- TensorFlow/Keras inference
 
 ## 📁 Project Structure
 
@@ -43,12 +43,9 @@ image-enhancement-project/
 ├── app.py                      # Main Streamlit application
 ├── filters.py                  # Digital filter implementations
 ├── enhancement.py              # Enhancement techniques
-├── cnn_denoise.py              # DnCNN model and inference
+├── cnn_denoise.py              # Keras CNN model loading and inference
 ├── utils.py                    # Utility functions
-├── train_cnn_keras.py          # Training script (Gaussian σ=25)
-├── train_cnn_sigma15.py        # Training script (Gaussian σ=15)
-├── train_cnn_sigma35.py        # Training script (Gaussian σ=35)
-├── train_cnn_salt_pepper.py    # Training script (Salt & Pepper)
+├── train_cnn.py                # Training script (parameterized: Gaussian σ15/25/35, Salt & Pepper)
 ├── requirements.txt            # Python dependencies
 ├── README.md                   # This file
 ├── Dataset/
@@ -74,17 +71,20 @@ The project includes pre-trained models, but you can retrain using your dataset:
 
 ```bash
 # Train for Gaussian noise (sigma=15)
-python train_cnn_sigma15.py
+python train_cnn.py --noise-type gaussian --noise-param 15
 
 # Train for Gaussian noise (sigma=25)
-python train_cnn_keras.py
+python train_cnn.py --noise-type gaussian --noise-param 25
 
 # Train for Gaussian noise (sigma=35)
-python train_cnn_sigma35.py
+python train_cnn.py --noise-type gaussian --noise-param 35
 
-# Train for Salt & Pepper noise
-python train_cnn_salt_pepper.py
+# Train for Salt & Pepper noise (10% corruption probability)
+python train_cnn.py --noise-type salt_pepper --noise-param 0.1
 ```
+
+Options: `--patch-size`, `--epochs`, `--batch-size`, `--dataset`, `--output`
+(see `python train_cnn.py --help`).
 
 **Dataset**: Place your training images (PNG format) in `Dataset/NEWDATASET/`. The current dataset contains 300 medical images.
 
@@ -109,7 +109,7 @@ The application will open in your default browser at `http://localhost:8501`
 ### Step 3: Apply Filters
 - Select desired filters from the checklist
 - Select enhancement methods
-- Optionally enable DnCNN denoising and load the model
+- Optionally enable CNN denoising and click "Run Full Pipeline" to process
 - Click "APPLY ALL FILTERS" to process
 
 ### Step 4: View Results
@@ -126,21 +126,22 @@ The application will open in your default browser at `http://localhost:8501`
 - **Streamlit**: Web UI framework
 - **OpenCV (cv2)**: Image processing
 - **NumPy**: Numerical computations
-- **PyTorch**: Deep learning framework
+- **TensorFlow/Keras**: Deep learning framework for the CNN denoiser
+- **scikit-image**: SSIM metric computation
 - **Pillow**: Image manipulation
 - **SciPy**: Scientific computing
 
 ### Device Support
 - **CPU**: Fully supported (default)
-- **GPU (CUDA)**: Automatically detected and used for DnCNN inference
+- **GPU**: Used automatically by TensorFlow when available
 
 ### Image Processing Pipeline
 1. **Input**: Grayscale image (uint8)
 2. **Noise Addition**: Synthetic noise injection
 3. **Filtering**: Multiple filter passes for noise reduction
 4. **Enhancement**: Contrast and brightness adjustments
-5. **Deep Learning**: DnCNN for advanced denoising
-6. **Output**: Enhanced image with preserved details
+5. **Deep Learning**: Trained Keras CNN denoiser, model selected by noise type/intensity
+6. **Output**: Enhanced image with preserved details, compared via PSNR and SSIM
 
 ## 📊 Filter Characteristics
 
@@ -153,13 +154,13 @@ The application will open in your default browser at `http://localhost:8501`
 | Morphological | Structure analysis | Fast | Good |
 | Sharpening | Detail enhancement | Fast | Good |
 
-## 🤖 DnCNN Model Information
+## 🤖 CNN Denoiser Model Information
 
-- **Architecture**: 17-layer CNN with residual learning
-- **Training**: Trained on diverse noise types
-- **Input**: Grayscale images (1 channel)
-- **Output**: Denoised image (same size as input)
-- **Speed**: GPU ~50ms per image, CPU ~500ms
+- **Architecture**: Small 4-layer CNN — 3× Conv2D (32 filters, 3×3, ReLU) + Conv2D output layer (~10k parameters)
+- **Training**: 300-image dataset, non-overlapping 40×40 patches, 8 epochs, batch size 16, Adam (lr 0.001), MSE loss
+- **Variants**: Four trained `.h5` models — Gaussian σ15, σ25, σ35, and Salt & Pepper — committed under `models/`
+- **Input**: Grayscale images (1 channel); **Output**: Denoised image (same size)
+- **Model selection**: The Streamlit app automatically picks the model matching the noise type and intensity
 
 ## 📝 Code Examples
 
@@ -189,33 +190,28 @@ noisy2 = add_salt_pepper_noise(img, salt_prob=0.05, pepper_prob=0.05)
 
 ### CNN Denoising
 ```python
-from cnn_denoise import load_dncnn_model, denoise_image_dncnn
-import torch
+from cnn_denoise import load_keras_cnn_model, denoise_image_keras_cnn
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model = load_dncnn_model(device=device)
-denoised = denoise_image_dncnn(noisy_img, model=model, device=device)
+model = load_keras_cnn_model('models/cnn_denoiser_sigma25.h5')
+denoised = denoise_image_keras_cnn(noisy_img, model=model)
 ```
 
 ## 📈 Performance Metrics
 
-The application can be evaluated using:
+The application computes, against the clean reference image:
 - **PSNR** (Peak Signal-to-Noise Ratio)
 - **SSIM** (Structural Similarity Index)
-- **MAE** (Mean Absolute Error)
 
-To compute metrics, install:
-```bash
-pip install scikit-image
-```
+Both appear in the comparison table, and Step 03 shows PSNR/SSIM cards for the
+CNN output versus the noisy input.
 
 ## 🐛 Troubleshooting
 
 ### Issue: "No module named 'streamlit'"
 **Solution**: Install dependencies with `pip install -r requirements.txt`
 
-### Issue: "CUDA not available for DnCNN"
-**Solution**: The app will automatically fallback to CPU. No action needed.
+### Issue: "Trained model not found"
+**Solution**: Run one of the `python train_cnn.py ...` commands above, or pull the committed models from the repo.
 
 ### Issue: "Image upload not working"
 **Solution**: Ensure file is JPG/PNG format and less than 200MB
@@ -227,16 +223,15 @@ pip install scikit-image
 
 - [OpenCV Documentation](https://docs.opencv.org/)
 - [Streamlit Documentation](https://docs.streamlit.io/)
-- [DnCNN Paper](https://arxiv.org/abs/1608.03981)
-- [PyTorch Tutorials](https://pytorch.org/tutorials/)
 
 ## ✅ Capstone Project Checklist
 
 - [x] Image upload and grayscale conversion
 - [x] Noise addition (Gaussian and Salt & Pepper)
 - [x] Digital filter implementations (7 filters)
-- [x] Enhancement techniques (4 methods)
-- [x] DnCNN model integration
+- [x] Enhancement techniques (5 methods)
+- [x] Keras CNN denoiser integration (4 trained models)
+- [x] PSNR and SSIM quality comparison
 - [x] Streamlit UI with sidebar controls
 - [x] Image saving to outputs folder
 - [x] Modular code structure
@@ -252,4 +247,4 @@ Capstone Project - Image Enhancement and Noise Reduction Using Digital Filters
 
 ---
 
-**Last Updated**: December 2025
+**Last Updated**: October 2026
