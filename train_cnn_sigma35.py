@@ -6,10 +6,8 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from tqdm import tqdm
-
 def load_dataset_patches(dataset_path, patch_size=40, noise_sigma=35):
     dataset_path = Path(dataset_path)
-    
     if not dataset_path.exists():
         raise FileNotFoundError(f"Dataset not found at {dataset_path}")
     

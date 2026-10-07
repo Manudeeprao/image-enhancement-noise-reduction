@@ -261,8 +261,8 @@ else:
         except Exception as e:
             sb.error(f"Error: {e}")
 
-    sb.markdown('<span class="sb-label">02 · Optional Reference Image</span>', unsafe_allow_html=True)
-    reference_file = sb.file_uploader("Optional original image for PSNR", type=["jpg","jpeg","png"], key="direct_reference_file", label_visibility="collapsed")
+    sb.markdown('<span class="sb-label">02 · Clean Reference (Required for PSNR)</span>', unsafe_allow_html=True)
+    reference_file = sb.file_uploader("Upload clean/original image for PSNR", type=["jpg","jpeg","png"], key="direct_reference_file", label_visibility="collapsed")
     if reference_file:
         try:
             st.session_state.original_image = load_image(reference_file)
@@ -400,6 +400,12 @@ if st.session_state.original_image is not None:
         else:
             st.markdown("""<div class="pf-alert info"><span style="font-size:1.1rem;flex-shrink:0;">ℹ️</span><div><strong>Next step</strong>Configure noise in the sidebar, then click Generate Noisy Image or upload a noisy image directly.</div></div>""", unsafe_allow_html=True)
 
+    if st.session_state.noisy_image is not None:
+        noisy_psnr = compute_psnr(st.session_state.original_image, st.session_state.noisy_image)
+        st.metric("Noisy Input PSNR", f"{noisy_psnr:.2f} dB")
+elif st.session_state.noisy_image is not None:
+    st.info("True PSNR requires a clean reference image. Upload the matching clean/original image in the sidebar, or switch to Synthetic Noise Pipeline.")
+
 # Section 02 — Filters & Enhancements
 if st.session_state.filtered_images:
     st.markdown("""
@@ -420,6 +426,47 @@ if st.session_state.filtered_images:
                 st.markdown(f'<div class="pf-card"><div class="pf-card-header"><div class="pf-card-dot" style="background:{dc};"></div><span class="pf-card-title">{name}</span></div>', unsafe_allow_html=True)
                 st.image(img, use_container_width=True, clamp=True)
                 st.markdown('</div>', unsafe_allow_html=True)
+
+    reference_image = (
+        st.session_state.original_image
+        if st.session_state.original_image is not None
+        else st.session_state.noisy_image
+    )
+    if reference_image is not None:
+        has_clean_reference = st.session_state.original_image is not None
+        psnr_rows = []
+        if has_clean_reference:
+            psnr_rows.append({
+                "Output": "Noisy Input",
+                "PSNR (dB)": compute_psnr(reference_image, st.session_state.noisy_image),
+            })
+        psnr_rows.extend(
+            {"Output": name, "PSNR (dB)": compute_psnr(reference_image, img)}
+            for name, img in items
+        )
+        if st.session_state.cnn_denoised is not None:
+            psnr_rows.append({
+                "Output": "CNN Denoised",
+                "PSNR (dB)": compute_psnr(reference_image, st.session_state.cnn_denoised),
+            })
+        psnr_table = pd.DataFrame(psnr_rows).sort_values("PSNR (dB)", ascending=False)
+        st.markdown("""
+        <div class="pf-section" style="margin-top:32px;">
+          <span class="pf-section-pill">PSNR</span>
+          <h2>Quality Comparison</h2>
+          <div class="pf-section-rule"></div>
+        </div>
+        """, unsafe_allow_html=True)
+        if has_clean_reference:
+            st.caption("Higher PSNR indicates a result closer to the clean reference image.")
+        else:
+            st.info("No clean reference image was uploaded. These are diagnostic PSNR values against the noisy input, not ground-truth quality scores.")
+        st.dataframe(
+            psnr_table,
+            hide_index=True,
+            use_container_width=True,
+            column_config={"PSNR (dB)": st.column_config.NumberColumn(format="%.2f dB")},
+        )
 
 # Section 03 — CNN Denoising
 if st.session_state.cnn_denoised is not None:
