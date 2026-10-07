@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 from skimage.metrics import structural_similarity as _ssim_metric
 
-from utils import load_image, add_gaussian_noise, add_salt_pepper_noise, save_image, normalize_image, denormalize_image
+from utils import load_image, add_gaussian_noise, add_salt_pepper_noise, save_image, normalize_image, denormalize_image, estimate_noise_level
 from filters import (average_filter, gaussian_blur, median_filter_cv,
                      bilateral_filter, sharpening_filter,
                      morphological_opening, morphological_closing)
@@ -321,11 +321,32 @@ else:
 
     if sb.button("Use Direct Noisy Image", key="use_direct_noisy"):
         if st.session_state.noisy_image is not None:
-            st.session_state.noise_params = {"type": "direct", "note": "Uploaded noisy image"}
+            # Auto-detect the noise type/level so the matching CNN model is used.
+            # End users can't be expected to know the noise parameters of an upload.
+            try:
+                ntype, nparam = estimate_noise_level(st.session_state.noisy_image)
+                if ntype == "gaussian":
+                    st.session_state.noise_params = {"type": "gaussian", "std": float(nparam), "estimated": True}
+                    sb.info(f"Detected Gaussian noise (σ ≈ {nparam:.0f}) — matching CNN model will be used.")
+                else:
+                    st.session_state.noise_params = {
+                        "type": "salt_pepper",
+                        "salt_prob": float(nparam) / 2, "pepper_prob": float(nparam) / 2,
+                        "estimated": True,
+                    }
+                    sb.info("Detected Salt & Pepper noise — matching CNN model will be used.")
+            except Exception as e:
+                st.session_state.noise_params = {"type": "direct", "note": "Uploaded noisy image"}
+                sb.warning(f"Could not estimate noise ({e}); using the default model.")
             sb.success("Direct noisy image is ready for processing.")
         else:
             sb.warning("Upload a noisy image first.")
-    noise_type_label = "Uploaded noisy image"
+    _ni = st.session_state.noise_params
+    if _ni and _ni.get("estimated"):
+        noise_type_label = (f"Auto-detected noise (σ≈{_ni['std']:.0f})" if _ni["type"] == "gaussian"
+                            else "Auto-detected Salt & Pepper noise")
+    else:
+        noise_type_label = "Uploaded noisy image"
 
 sb.markdown('<span class="sb-label">03 · Digital Filters</span>', unsafe_allow_html=True)
 filter_options = {
