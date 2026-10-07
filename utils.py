@@ -114,3 +114,38 @@ def denormalize_image(image):
         Denormalized image in 0-255 range
     """
     return np.clip(image * 255, 0, 255).astype(np.uint8)
+
+
+def estimate_noise_level(image):
+    """
+    Estimate the noise type and level of a grayscale image, so the app can
+    automatically pick the matching CNN denoising model for uploaded images
+    whose noise parameters are unknown.
+
+    - Gaussian noise: Immerkaer's (1996) Laplacian-based estimator,
+      sigma ~= sqrt(pi/2) * mean(|Laplacian|) / 6.
+    - Salt & pepper noise: counts isolated extreme pixels (exactly 0 or 255
+      that disagree strongly with their 3x3 neighbourhood median). This avoids
+      mistaking naturally dark/bright regions (e.g. X-ray backgrounds) for noise.
+
+    Args:
+        image: Grayscale image (numpy array, uint8)
+
+    Returns:
+        (noise_type, param): ("gaussian", sigma) with sigma in [0, 255] units,
+        or ("salt_pepper", probability) with probability in [0, 1].
+    """
+    image = np.asarray(image, dtype=np.uint8)
+
+    # Salt & pepper check first: isolated extreme pixels.
+    median3 = cv2.medianBlur(image, 3)
+    residual = np.abs(image.astype(np.int16) - median3.astype(np.int16))
+    isolated_extreme = ((image == 0) | (image == 255)) & (residual > 128)
+    sp_frac = float(np.mean(isolated_extreme))
+    if sp_frac > 0.01:
+        return "salt_pepper", float(min(sp_frac, 1.0))
+
+    # Gaussian noise level via Laplacian estimator.
+    laplacian = cv2.Laplacian(image, cv2.CV_64F)
+    sigma = float(np.sqrt(np.pi / 2.0) * np.mean(np.abs(laplacian)) / 6.0)
+    return "gaussian", max(sigma, 0.0)
